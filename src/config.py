@@ -31,3 +31,9 @@ N_B = 500
 D = 10.0      # coefficient de diffusion (µm²/s), ordre de grandeur d'une protéine en solution
 DT = 0.01     # pas de temps (s) ; déplacement typique par axe et par pas : sqrt(2*D*DT) ≈ 0.45 µm
 N_STEPS = 5000  # nombre de pas de temps (sans unité) ; durée simulée = N_STEPS * DT = 50 s
+
+# Réaction
+R_C = 2.0  # rayon de réaction (µm) : une paire A-B à distance < R_C peut réagir.
+           # Doit rester nettement supérieur au déplacement relatif d'une paire par pas,
+           # sqrt(2 * 2*D*DT) ≈ 0.9 µm, sinon des particules « se croisent » sans être détectées.
+           # Valeur provisoire, à ajuster avec p (issues #6 et #8).

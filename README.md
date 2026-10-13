@@ -183,7 +183,7 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 | D | coefficient de diffusion | µm²/s | 10 |
 | dt | pas de temps | s | 0.01 |
 | n_steps | nombre de pas de temps (durée simulée = n_steps · dt) | — | 5000 (50 s) |
-| r_c | rayon de réaction | µm | *(issue #5)* |
+| r_c | rayon de réaction | µm | 2 (provisoire) |
 | p | probabilité de réaction par collision | — | *(issue #6)* |
 | k | constante de vitesse macroscopique (2D) | µm²/s | *(issue #8)* |
 | k₂ | constante de la réaction autocatalytique | µm²/s | *(issue #14)* |
