@@ -25,3 +25,8 @@ L = 100.0  # côté de la boîte carrée (µm)
 # Populations initiales (nombre de particules, sans unité)
 N_A = 500
 N_B = 500
+
+# Diffusion et discrétisation en temps
+D = 10.0      # coefficient de diffusion (µm²/s), ordre de grandeur d'une protéine en solution
+DT = 0.01     # pas de temps (s) ; déplacement typique par axe et par pas : sqrt(2*D*DT) ≈ 0.45 µm
+N_STEPS = 5000  # nombre de pas de temps (sans unité) ; durée simulée = N_STEPS * DT = 50 s

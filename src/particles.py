@@ -1,9 +1,9 @@
 """
-Génération des particules dans la boîte de simulation.
+Génération des particules et déplacement brownien dans la boîte de simulation.
 
 Représentation de l'état du système :
 - positions : tableau NumPy (N, 2) de flottants, colonnes x et y en µm,
-              avec 0 <= x < L et 0 <= y < L
+              avec 0 <= x <= L et 0 <= y <= L
 - labels    : tableau NumPy (N,) d'entiers, code de l'espèce de chaque
               particule (A, B ou C, voir config.py)
 
@@ -47,6 +47,64 @@ def init_particles(n_a, n_b, L, rng):
         np.full(n_b, B, dtype=np.int8),
     ])
     return positions, labels
+
+
+def reflect(positions, L):
+    """
+    Applique les conditions aux limites réfléchissantes sur les 4 parois de [0, L] x [0, L].
+
+    Une particule qui dépasse une paroi est renvoyée symétriquement à l'intérieur,
+    comme un miroir : x < 0 devient -x, et x > L devient 2L - x.
+    Pour traiter aussi le cas (rare) d'un saut plus grand que L, on replie la
+    coordonnée modulo 2L : le mouvement réfléchi entre deux miroirs est périodique
+    de période 2L, et sur [L, 2L[ il redescend de L vers 0.
+
+    Paramètres
+    ----------
+    positions : ndarray (N, 2)
+        Positions (µm), éventuellement hors de la boîte.
+    L : float
+        Côté de la boîte carrée (µm).
+
+    Retour
+    ------
+    ndarray (N, 2)
+        Nouvelles positions (µm), toutes dans [0, L].
+    """
+    positions = np.mod(positions, 2 * L)      # ramène dans [0, 2L[
+    hors = positions > L                      # partie « retour » du mouvement
+    positions[hors] = 2 * L - positions[hors]
+    return positions
+
+
+def step(positions, D, dt, L, rng):
+    """
+    Effectue un pas de temps de diffusion brownienne, puis applique les parois.
+
+    Chaque coordonnée reçoit un déplacement indépendant Δx = sqrt(2·D·dt)·ξ,
+    avec ξ ~ N(0, 1). C'est le schéma d'Euler-Maruyama de l'équation de
+    Langevin sans force : la variance du déplacement par axe vaut 2·D·dt.
+
+    Paramètres
+    ----------
+    positions : ndarray (N, 2)
+        Positions actuelles (µm).
+    D : float
+        Coefficient de diffusion (µm²/s).
+    dt : float
+        Pas de temps (s).
+    L : float
+        Côté de la boîte carrée (µm).
+    rng : numpy.random.Generator
+        Générateur aléatoire.
+
+    Retour
+    ------
+    ndarray (N, 2)
+        Positions après le pas de temps (µm), dans [0, L].
+    """
+    deplacements = np.sqrt(2 * D * dt) * rng.standard_normal(positions.shape)
+    return reflect(positions + deplacements, L)
 
 
 if __name__ == "__main__":
