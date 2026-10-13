@@ -172,20 +172,20 @@ python src/run_simulation.py
 
 ## 7. Unités et paramètres
 
-*(à compléter : choix définitif des unités de longueur et de temps — issue #2)*
+Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur en micromètres (µm), temps en secondes (s)**. Le coefficient de diffusion D s'exprime donc en µm²/s.
 
-| Symbole | Signification | Unité |
-|---|---|---|
-| L | côté de la boîte | longueur |
-| N_A, N_B | nombres initiaux de particules A et B | — |
-| D | coefficient de diffusion | longueur² / temps |
-| dt | pas de temps | temps |
-| r_c | rayon de réaction | longueur |
-| p | probabilité de réaction par collision | — |
-| k | constante de vitesse macroscopique (2D) | longueur² / temps |
-| k₂ | constante de la réaction autocatalytique | longueur² / temps |
-| k_rev | constante de la réaction inverse | 1 / temps |
-| SEED | graine du générateur aléatoire | — |
+| Symbole | Signification | Unité | Valeur actuelle |
+|---|---|---|---|
+| L | côté de la boîte | µm | 100 |
+| N_A, N_B | nombres initiaux de particules A et B | — | 500, 500 |
+| D | coefficient de diffusion | µm²/s | *(issue #3)* |
+| dt | pas de temps | s | *(issue #3)* |
+| r_c | rayon de réaction | µm | *(issue #5)* |
+| p | probabilité de réaction par collision | — | *(issue #6)* |
+| k | constante de vitesse macroscopique (2D) | µm²/s | *(issue #8)* |
+| k₂ | constante de la réaction autocatalytique | µm²/s | *(issue #14)* |
+| k_rev | constante de la réaction inverse | 1/s | *(issue #15)* |
+| SEED | graine du générateur aléatoire | — | 42 |
 
 ---
 
