@@ -56,6 +56,7 @@ SPARC/
 │   ├── analysis.py        # comptages, profils de densité, front, tracés
 │   └── run_simulation.py  # point d'entrée : boucle temporelle, sauvegarde
 ├── figures/               # figures finales du rapport (tmp_* = brouillons, ignorés par git)
+├── resultats/             # sorties numériques CSV (save_populations), ignorées par git
 └── report/                # rapport LaTeX
 ```
 

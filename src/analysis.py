@@ -12,8 +12,82 @@ import numpy as np
 
 from config import A, B, C, NOMS_ESPECES, COULEURS_ESPECES
 
-# Dossier figures/ à la racine du dépôt, quel que soit le dossier depuis lequel on lance le script
+# Dossiers à la racine du dépôt, quel que soit le dossier depuis lequel on lance le script
 DOSSIER_FIGURES = Path(__file__).resolve().parent.parent / "figures"
+DOSSIER_RESULTATS = Path(__file__).resolve().parent.parent / "resultats"
+
+
+def count_species(labels):
+    """
+    Compte les particules de chaque espèce.
+
+    Paramètres
+    ----------
+    labels : ndarray (N,)
+        Espèce de chaque particule (A, B ou C).
+
+    Retour
+    ------
+    ndarray (3,) d'entiers
+        [N_A, N_B, N_C]. np.bincount compte les occurrences de 0 (A), 1 (B) et 2 (C) ;
+        minlength=3 garantit trois cases même si une espèce a disparu.
+    """
+    return np.bincount(labels, minlength=3)[[A, B, C]]
+
+
+def save_populations(nom, t, comptages, L, params=None):
+    """
+    Enregistre l'évolution des populations dans resultats/<nom>.csv.
+
+    Colonnes : t (s), N_A, N_B, N_C (nombres de particules) et c_A, c_B, c_C
+    (concentrations surfaciques = N / L², en µm⁻²). Les paramètres de la simulation
+    sont écrits en commentaire (lignes commençant par #) en tête du fichier.
+
+    Paramètres
+    ----------
+    nom : str
+        Nom du fichier, sans extension.
+    t : ndarray (n,)
+        Instants (s).
+    comptages : ndarray (n, 3)
+        Nombres de particules A, B, C à chaque instant.
+    L : float
+        Côté de la boîte carrée (µm), pour calculer les concentrations.
+    params : dict ou None
+        Paramètres de simulation à noter dans l'en-tête.
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier CSV enregistré.
+    """
+    concentrations = comptages / L ** 2
+    donnees = np.column_stack((t, comptages, concentrations))
+    entete = ""
+    if params:
+        entete += "Paramètres : " + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items()) + "\n"
+    entete += "t (s),N_A,N_B,N_C,c_A (µm^-2),c_B (µm^-2),c_C (µm^-2)"
+
+    DOSSIER_RESULTATS.mkdir(exist_ok=True)
+    chemin = DOSSIER_RESULTATS / f"{nom}.csv"
+    np.savetxt(chemin, donnees, delimiter=",", header=entete, encoding="utf-8",
+               fmt=["%.6g", "%d", "%d", "%d", "%.6e", "%.6e", "%.6e"])
+    return chemin
+
+
+def load_populations(nom):
+    """
+    Relit un fichier écrit par save_populations.
+
+    Retour
+    ------
+    t : ndarray (n,)
+        Instants (s).
+    comptages : ndarray (n, 3) d'entiers
+        Nombres de particules A, B, C.
+    """
+    donnees = np.loadtxt(DOSSIER_RESULTATS / f"{nom}.csv", delimiter=",", encoding="utf-8")
+    return donnees[:, 0], donnees[:, 1:4].astype(int)
 
 
 def plot_snapshot(positions, labels, t, L, params=None, nom=None):

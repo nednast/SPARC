@@ -7,7 +7,7 @@ Lancement depuis la racine du dépôt :
 
 import numpy as np
 
-from analysis import plot_snapshot
+from analysis import plot_snapshot, count_species, save_populations, load_populations
 from config import SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C
 from particles import init_particles, step
 from reactions import reaction_step
@@ -46,18 +46,24 @@ def run_simulation(n_steps, positions, labels, D, dt, L, r_c, p, rng, save_every
     Retour
     ------
     positions, labels : état final.
+    comptages : ndarray (n_steps + 1, 3) d'entiers
+        Nombres de particules [N_A, N_B, N_C] à chaque pas, de l'instant initial (ligne 0)
+        au dernier pas (ligne n_steps). L'instant du pas n est n·dt.
     historique : list de tuples (n, positions, labels)
         États enregistrés, n étant le numéro du pas (liste vide si save_every est None).
         Le nombre de particules diminue au fil des réactions, d'où une copie par instant.
     """
+    comptages = np.zeros((n_steps + 1, 3), dtype=int)
+    comptages[0] = count_species(labels)
     historique = [(0, positions.copy(), labels.copy())] if save_every else []
     for n in range(1, n_steps + 1):
         positions = step(positions, D, dt, L, rng)
         if p > 0:
             positions, labels, _ = reaction_step(positions, labels, r_c, p, rng)
+        comptages[n] = count_species(labels)
         if save_every and n % save_every == 0:
             historique.append((n, positions.copy(), labels.copy()))
-    return positions, labels, historique
+    return positions, labels, comptages, historique
 
 
 if __name__ == "__main__":
@@ -65,7 +71,7 @@ if __name__ == "__main__":
     positions_init, labels_init = init_particles(N_A, N_B, L, rng)
 
     # Simulation avec réaction, état enregistré à chaque pas pour les vérifications
-    _, _, historique = run_simulation(N_STEPS, positions_init, labels_init, D, DT, L,
+    _, _, comptages, historique = run_simulation(N_STEPS, positions_init, labels_init, D, DT, L,
                                       R_C, P, rng, save_every=1)
 
     # Test 1 — confinement : aucune coordonnée hors de la boîte, à aucun pas
@@ -75,21 +81,24 @@ if __name__ == "__main__":
 
     # Test 2 — conservation de la matière : chaque C contient un A et un B,
     # donc N_A + N_C et N_B + N_C restent constants
-    ecart_max = max(
-        max(abs(np.sum(lab == A) + np.sum(lab == C) - N_A),
-            abs(np.sum(lab == B) + np.sum(lab == C) - N_B))
-        for _, _, lab in historique)
+    n_a, n_b, n_c = comptages[:, A], comptages[:, B], comptages[:, C]
+    ecart_max = max(np.max(np.abs(n_a + n_c - N_A)), np.max(np.abs(n_b + n_c - N_B)))
     print(f"Conservation : écart maximal sur N_A + N_C et N_B + N_C = {ecart_max}")
 
     # Populations à quelques instants
     for n in (0, 300, N_STEPS):
-        lab = historique[n][2]
-        print(f"  t = {n * DT:5.1f} s : A = {np.sum(lab == A)}, B = {np.sum(lab == B)}, "
-              f"C = {np.sum(lab == C)}")
+        print(f"  t = {n * DT:5.1f} s : A = {n_a[n]}, B = {n_b[n]}, C = {n_c[n]}")
+
+    # Sauvegarde de l'historique des populations, puis relecture pour vérifier le fichier
+    params = {"N_A": N_A, "N_B": N_B, "L": f"{L:g} µm", "D": f"{D:g} µm²/s",
+              "dt": f"{DT:g} s", "n_steps": N_STEPS, "r_c": f"{R_C:g} µm", "p": P, "SEED": SEED}
+    t = np.arange(N_STEPS + 1) * DT
+    chemin = save_populations("populations_couche1", t, comptages, L, params)
+    t_relu, comptages_relus = load_populations("populations_couche1")
+    print(f"Populations enregistrées : {chemin} — relecture identique : "
+          f"{np.allclose(t_relu, t) and np.array_equal(comptages_relus, comptages)}")
 
     # Instantanés : début, après 300 pas, fin
-    params = {"N_A": N_A, "N_B": N_B, "L": f"{L:g} µm", "D": f"{D:g} µm²/s",
-              "dt": f"{DT:g} s", "r_c": f"{R_C:g} µm", "p": P}
     for n in (0, 300, N_STEPS):
         _, pos, lab = historique[n]
         chemin = plot_snapshot(pos, lab, n * DT, L, params=params)
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     # parties à plus de 15 µm des parois, que les parois n'ont presque pas pu atteindre.
     n_court = 100
     t_court = n_court * DT
-    pos_fin, _, _ = run_simulation(n_court, positions_init, labels_init, D, DT, L, R_C, 0.0, rng)
+    pos_fin, _, _, _ = run_simulation(n_court, positions_init, labels_init, D, DT, L, R_C, 0.0, rng)
     r2 = np.sum((pos_fin - positions_init) ** 2, axis=1)
     loin = np.all((positions_init > 15) & (positions_init < L - 15), axis=1)
     msd = r2[loin].mean()

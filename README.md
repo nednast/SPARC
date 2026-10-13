@@ -83,6 +83,7 @@ SPARC/
 │   ├── analysis.py        # comptage des espèces, profils de densité, suivi du front, tracés
 │   └── run_simulation.py  # point d'entrée : boucle temporelle et sauvegarde des résultats
 ├── figures/               # figures générées (PNG/PDF) destinées au rapport
+├── resultats/             # sorties numériques (CSV) — régénérées par les scripts, non versionnées
 └── report/                # sources LaTeX du rapport
 ```
 
@@ -148,7 +149,15 @@ Toutes les commandes sont exécutées depuis la racine du dépôt, environnement
 python src/run_simulation.py
 ```
 
-Pour l'instant (issue #6), ce script lance la simulation avec réaction A + B → C sur 5000 pas (50 s simulées) et affiche : le confinement des particules dans la boîte, la conservation de la matière (N_A + N_C et N_B + N_C constants), les populations à t = 0, 3 et 50 s, trois instantanés dans `figures/`, puis le déplacement quadratique moyen sans réaction comparé à la valeur théorique 4·D·t. Durée : environ 7 s.
+Pour l'instant (issue #7), ce script lance la simulation avec réaction A + B → C sur 5000 pas (50 s simulées), puis :
+
+- vérifie le confinement des particules dans la boîte et la conservation de la matière (N_A + N_C et N_B + N_C constants) ;
+- affiche les populations à t = 0, 3 et 50 s ;
+- enregistre l'historique des populations dans `resultats/populations_couche1.csv` ;
+- sauvegarde trois instantanés dans `figures/` ;
+- compare le déplacement quadratique moyen sans réaction à la valeur théorique 4·D·t.
+
+Durée : environ 7 s.
 
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
@@ -167,7 +176,7 @@ Pour l'instant (issue #6), ce script lance la simulation avec réaction A + B �
 ## 6. Reproductibilité
 
 - Tous les tirages aléatoires passent par un unique générateur `numpy.random.default_rng(SEED)`, avec `SEED = 42` défini dans `src/config.py`. Aucun appel à l'aléatoire global de NumPy (`np.random.rand`, etc.) n'est utilisé.
-- Les historiques de populations et les profils de densité sont sauvegardés (`.npy` / `.csv`) afin de pouvoir refaire les analyses sans relancer les simulations.
+- Les historiques de populations sont sauvegardés dans `resultats/` au format CSV (colonnes `t (s), N_A, N_B, N_C, c_A, c_B, c_C`, concentrations en µm⁻², paramètres de la simulation en en-tête) afin de pouvoir refaire les analyses sans relancer les simulations. Lecture : `load_populations(nom)` dans `src/analysis.py`. Ces fichiers ne sont pas versionnés : ils sont régénérés par `python src/run_simulation.py`.
 - Les paramètres exacts de chaque figure du rapport sont listés à la [section 8](#8-figures-du-rapport).
 
 ---
