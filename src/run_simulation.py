@@ -7,6 +7,7 @@ Lancement depuis la racine du dépôt :
 
 import numpy as np
 
+from analysis import plot_snapshot
 from config import SEED, L, N_A, N_B, D, DT, N_STEPS
 from particles import init_particles, step
 
@@ -61,6 +62,12 @@ if __name__ == "__main__":
     print(f"Confinement sur {N_STEPS} pas ({N_STEPS * DT:.0f} s) : "
           f"max de coordonnées hors de [0, L] = {n_hors_max}, "
           f"max de particules perdues = {n_perdues_max}")
+
+    # Instantanés au début et à la fin de la simulation
+    params = {"N": n_particules, "L": f"{L:g} µm", "D": f"{D:g} µm²/s", "dt": f"{DT:g} s"}
+    for n in (0, N_STEPS):
+        chemin = plot_snapshot(historique[n], labels, n * DT, L, params=params)
+        print(f"Instantané enregistré : {chemin}")
 
     # Test 2 — validation de la diffusion : en 2D, le déplacement quadratique moyen
     # vaut <r²> = 4·D·t en milieu libre. On le mesure sur une durée courte

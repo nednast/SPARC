@@ -108,10 +108,9 @@ def step(positions, D, dt, L, rng):
 
 
 if __name__ == "__main__":
-    # Démonstration : génère l'état initial et l'affiche sous forme de nuage de points.
-    import matplotlib.pyplot as plt
-
-    from config import SEED, L as L_BOITE, N_A, N_B, NOMS_ESPECES
+    # Démonstration : génère l'état initial et l'enregistre sous forme de nuage de points.
+    from analysis import plot_snapshot
+    from config import SEED, L as L_BOITE, N_A, N_B
 
     rng = np.random.default_rng(SEED)
     positions, labels = init_particles(N_A, N_B, L_BOITE, rng)
@@ -121,17 +120,6 @@ if __name__ == "__main__":
     print(f"x dans [{positions[:, 0].min():.2f}, {positions[:, 0].max():.2f}] µm, "
           f"y dans [{positions[:, 1].min():.2f}, {positions[:, 1].max():.2f}] µm")
 
-    fig, ax = plt.subplots(figsize=(6, 6))
-    for espece, couleur in [(A, "tab:blue"), (B, "tab:red")]:
-        masque = labels == espece
-        ax.scatter(positions[masque, 0], positions[masque, 1], s=8,
-                   color=couleur, label=NOMS_ESPECES[espece])
-    ax.set_xlim(0, L_BOITE)
-    ax.set_ylim(0, L_BOITE)
-    ax.set_aspect("equal")
-    ax.set_xlabel("x (µm)")
-    ax.set_ylabel("y (µm)")
-    ax.set_title(f"État initial — N_A = {N_A}, N_B = {N_B}, L = {L_BOITE} µm")
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
-    fig.savefig("figures/tmp_init_particles.png", dpi=150, bbox_inches="tight")
-    plt.show()
+    chemin = plot_snapshot(positions, labels, 0.0, L_BOITE,
+                           params={"N_A": N_A, "N_B": N_B, "L": f"{L_BOITE:g} µm"})
+    print(f"Figure enregistrée : {chemin}")

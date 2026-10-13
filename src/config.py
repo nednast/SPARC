@@ -18,6 +18,7 @@ A = 0
 B = 1
 C = 2
 NOMS_ESPECES = {A: "A", B: "B", C: "C"}
+COULEURS_ESPECES = {A: "tab:blue", B: "tab:red", C: "tab:green"}  # identiques sur toutes les figures
 
 # Boîte de simulation
 L = 100.0  # côté de la boîte carrée (µm)

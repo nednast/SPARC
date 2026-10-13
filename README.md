@@ -148,6 +148,8 @@ Toutes les commandes sont exécutées depuis la racine du dépôt, environnement
 python src/run_simulation.py
 ```
 
+Pour l'instant (issue #3), ce script lance la diffusion seule (sans réaction) et affiche deux vérifications : confinement des particules dans la boîte sur 5000 pas, et déplacement quadratique moyen comparé à la valeur théorique 4·D·t. Durée : moins d'une seconde.
+
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
 ### Temps d'exécution typique
@@ -178,8 +180,9 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 |---|---|---|---|
 | L | côté de la boîte | µm | 100 |
 | N_A, N_B | nombres initiaux de particules A et B | — | 500, 500 |
-| D | coefficient de diffusion | µm²/s | *(issue #3)* |
-| dt | pas de temps | s | *(issue #3)* |
+| D | coefficient de diffusion | µm²/s | 10 |
+| dt | pas de temps | s | 0.01 |
+| n_steps | nombre de pas de temps (durée simulée = n_steps · dt) | — | 5000 (50 s) |
 | r_c | rayon de réaction | µm | *(issue #5)* |
 | p | probabilité de réaction par collision | — | *(issue #6)* |
 | k | constante de vitesse macroscopique (2D) | µm²/s | *(issue #8)* |
