@@ -1,0 +1,79 @@
+"""
+Génération des particules dans la boîte de simulation.
+
+Représentation de l'état du système :
+- positions : tableau NumPy (N, 2) de flottants, colonnes x et y en µm,
+              avec 0 <= x < L et 0 <= y < L
+- labels    : tableau NumPy (N,) d'entiers, code de l'espèce de chaque
+              particule (A, B ou C, voir config.py)
+
+La particule i a pour position positions[i] et pour espèce labels[i].
+"""
+
+import numpy as np
+
+from config import A, B
+
+
+def init_particles(n_a, n_b, L, rng):
+    """
+    Place n_a particules A et n_b particules B uniformément dans la boîte [0, L[ x [0, L[.
+
+    Paramètres
+    ----------
+    n_a, n_b : int
+        Nombres initiaux de particules A et B.
+    L : float
+        Côté de la boîte carrée (µm).
+    rng : numpy.random.Generator
+        Générateur aléatoire (créé avec np.random.default_rng(SEED)).
+
+    Retour
+    ------
+    positions : ndarray (n_a + n_b, 2)
+        Coordonnées (x, y) en µm.
+    labels : ndarray (n_a + n_b,)
+        Espèce de chaque particule : les n_a premières sont A, les n_b suivantes sont B.
+    """
+    if n_a < 0 or n_b < 0:
+        raise ValueError("Les nombres de particules doivent être positifs ou nuls.")
+    if L <= 0:
+        raise ValueError("La taille de la boîte L doit être strictement positive.")
+
+    n = n_a + n_b
+    positions = rng.uniform(0.0, L, size=(n, 2))
+    labels = np.concatenate([
+        np.full(n_a, A, dtype=np.int8),
+        np.full(n_b, B, dtype=np.int8),
+    ])
+    return positions, labels
+
+
+if __name__ == "__main__":
+    # Démonstration : génère l'état initial et l'affiche sous forme de nuage de points.
+    import matplotlib.pyplot as plt
+
+    from config import SEED, L as L_BOITE, N_A, N_B, NOMS_ESPECES
+
+    rng = np.random.default_rng(SEED)
+    positions, labels = init_particles(N_A, N_B, L_BOITE, rng)
+
+    print(f"{len(positions)} particules générées "
+          f"({np.sum(labels == A)} A, {np.sum(labels == B)} B)")
+    print(f"x dans [{positions[:, 0].min():.2f}, {positions[:, 0].max():.2f}] µm, "
+          f"y dans [{positions[:, 1].min():.2f}, {positions[:, 1].max():.2f}] µm")
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    for espece, couleur in [(A, "tab:blue"), (B, "tab:red")]:
+        masque = labels == espece
+        ax.scatter(positions[masque, 0], positions[masque, 1], s=8,
+                   color=couleur, label=NOMS_ESPECES[espece])
+    ax.set_xlim(0, L_BOITE)
+    ax.set_ylim(0, L_BOITE)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (µm)")
+    ax.set_ylabel("y (µm)")
+    ax.set_title(f"État initial — N_A = {N_A}, N_B = {N_B}, L = {L_BOITE} µm")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
+    fig.savefig("figures/tmp_init_particles.png", dpi=150, bbox_inches="tight")
+    plt.show()
