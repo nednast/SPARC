@@ -37,3 +37,6 @@ R_C = 2.0  # rayon de réaction (µm) : une paire A-B à distance < R_C peut ré
            # Doit rester nettement supérieur au déplacement relatif d'une paire par pas,
            # sqrt(2 * 2*D*DT) ≈ 0.9 µm, sinon des particules « se croisent » sans être détectées.
            # Valeur provisoire, à ajuster avec p (issues #6 et #8).
+P = 0.001  # probabilité de réaction d'une paire A-B en collision, par pas de temps (sans unité).
+           # Attention : p est défini « par pas », donc le taux de réaction réel dépend de DT.
+           # Pour comparer plusieurs DT (issue #9), il faudra garder p / DT constant.

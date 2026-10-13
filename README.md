@@ -148,7 +148,7 @@ Toutes les commandes sont exécutées depuis la racine du dépôt, environnement
 python src/run_simulation.py
 ```
 
-Pour l'instant (issue #3), ce script lance la diffusion seule (sans réaction) et affiche deux vérifications : confinement des particules dans la boîte sur 5000 pas, et déplacement quadratique moyen comparé à la valeur théorique 4·D·t. Durée : moins d'une seconde.
+Pour l'instant (issue #6), ce script lance la simulation avec réaction A + B → C sur 5000 pas (50 s simulées) et affiche : le confinement des particules dans la boîte, la conservation de la matière (N_A + N_C et N_B + N_C constants), les populations à t = 0, 3 et 50 s, trois instantanés dans `figures/`, puis le déplacement quadratique moyen sans réaction comparé à la valeur théorique 4·D·t. Durée : environ 7 s.
 
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
@@ -184,7 +184,7 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 | dt | pas de temps | s | 0.01 |
 | n_steps | nombre de pas de temps (durée simulée = n_steps · dt) | — | 5000 (50 s) |
 | r_c | rayon de réaction | µm | 2 (provisoire) |
-| p | probabilité de réaction par collision | — | *(issue #6)* |
+| p | probabilité de réaction d'une paire en collision, par pas de temps | — | 0.001 |
 | k | constante de vitesse macroscopique (2D) | µm²/s | *(issue #8)* |
 | k₂ | constante de la réaction autocatalytique | µm²/s | *(issue #14)* |
 | k_rev | constante de la réaction inverse | 1/s | *(issue #15)* |
