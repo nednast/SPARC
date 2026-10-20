@@ -40,3 +40,11 @@ R_C = 2.0  # rayon de réaction (µm) : une paire A-B à distance < R_C peut ré
 P = 0.001  # probabilité de réaction d'une paire A-B en collision, par pas de temps (sans unité).
            # Attention : p est défini « par pas », donc le taux de réaction réel dépend de DT.
            # Pour comparer plusieurs DT (issue #9), il faudra garder p / DT constant.
+
+# Étude de convergence (issue #9) : python src/run_simulation.py --convergence
+FACTEURS_DT = (1, 2, 4)             # pas testés : dt = DT / facteur, avec p / dt constant (même k)
+N_RUNS_DT = 10                      # simulations indépendantes par valeur de dt
+N_TOTAUX = (200, 500, 1000, 2000)   # N = N_A + N_B testés (N_A = N_B), à concentration initiale
+                                    # constante : la boîte est agrandie avec N
+N_RUNS_N = (40, 20, 10, 10)         # simulations indépendantes pour chaque N : plus pour les
+                                    # petits N, plus bruités et moins coûteux

@@ -90,6 +90,214 @@ def load_populations(nom):
     return donnees[:, 0], donnees[:, 1:4].astype(int)
 
 
+def relative_gaps(trajectoires, n_theorie):
+    """
+    Écarts relatifs entre plusieurs simulations indépendantes et la théorie.
+
+    Pour chaque simulation r et chaque instant : e[r, n] = (N_sim[r, n] - N_th[n]) / N_th[n].
+
+    Paramètres
+    ----------
+    trajectoires : ndarray (n_runs, n)
+        Nombre de particules (d'une espèce) dans chaque simulation, aux mêmes instants.
+    n_theorie : ndarray (n,)
+        Nombre prédit par la théorie aux mêmes instants.
+
+    Retour
+    ------
+    dict
+        "moyen"            : ndarray (n,), écart relatif moyen sur les simulations (biais) ;
+        "incertitude"      : ndarray (n,), écart-type de cette moyenne (écart-type / √n_runs) ;
+        "rms"              : float, moyenne sur les simulations de l'écart quadratique moyen
+                             dans le temps, sqrt(moyenne_n e[r, n]²) : biais + fluctuations ;
+        "rms_incertitude"  : float, écart-type de cette moyenne.
+    """
+    n_runs = len(trajectoires)
+    ecarts = (trajectoires - n_theorie) / n_theorie
+    rms_par_run = np.sqrt(np.mean(ecarts ** 2, axis=1))
+    return {
+        "moyen": ecarts.mean(axis=0),
+        "incertitude": ecarts.std(axis=0, ddof=1) / np.sqrt(n_runs),
+        "rms": rms_par_run.mean(),
+        "rms_incertitude": rms_par_run.std(ddof=1) / np.sqrt(n_runs),
+    }
+
+
+def save_table(nom, colonnes, donnees, params=None):
+    """
+    Enregistre un tableau de résultats numériques dans resultats/<nom>.csv.
+
+    Paramètres
+    ----------
+    nom : str
+        Nom du fichier, sans extension.
+    colonnes : list de str
+        Noms des colonnes, avec leur unité.
+    donnees : array-like (n_lignes, n_colonnes)
+        Valeurs du tableau.
+    params : dict ou None
+        Paramètres à noter en commentaire dans l'en-tête.
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier CSV enregistré.
+    """
+    entete = ""
+    if params:
+        entete += "Paramètres : " + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items()) + "\n"
+    entete += ",".join(colonnes)
+    DOSSIER_RESULTATS.mkdir(exist_ok=True)
+    chemin = DOSSIER_RESULTATS / f"{nom}.csv"
+    np.savetxt(chemin, np.asarray(donnees), delimiter=",", header=entete, encoding="utf-8", fmt="%.6g")
+    return chemin
+
+
+def _texte_params(params):
+    """Paramètres de simulation mis en forme pour un titre de figure (« clé = valeur, ... »)."""
+    return ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items()) if params else ""
+
+
+def _enregistrer(fig, nom, prefixe_brouillon):
+    """Enregistre la figure en PNG 150 dpi dans figures/ (brouillon horodaté si nom est None)."""
+    if nom is None:
+        horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        nom = f"tmp_{prefixe_brouillon}_{horodatage}"
+    DOSSIER_FIGURES.mkdir(exist_ok=True)
+    chemin = DOSSIER_FIGURES / f"{nom}.png"
+    fig.savefig(chemin, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return chemin
+
+
+def plot_convergence_dt(t, resultats, biais_bord, params=None, nom=None):
+    """
+    Figure de convergence en dt : écart relatif de N_A à la loi d'action de masse.
+
+    (a) écart relatif moyen en fonction du temps pour chaque dt, avec une bande de ±1
+        écart-type de la moyenne ; (b) écart relatif à l'instant final en fonction de dt.
+    Sur les deux, le tireté noir est le biais prédit par la seule correction de bord.
+
+    Paramètres
+    ----------
+    t : ndarray (n,)
+        Instants (s).
+    resultats : list de dict
+        Un dict par valeur de dt, avec les clés "dt" (s) et "moyen", "incertitude"
+        (sortie de relative_gaps, sans unité).
+    biais_bord : ndarray (n,)
+        Écart relatif prédit en remplaçant k par k · border_factor(r_c, L).
+    params : dict ou None
+        Paramètres communs à afficher dans le titre.
+    nom : str ou None
+        Nom du fichier (sans extension) dans figures/ ; brouillon horodaté par défaut.
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier PNG enregistré.
+    """
+    couleurs = plt.cm.viridis(np.linspace(0, 0.8, len(resultats)))
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(12, 4.5))
+    for res, couleur in zip(resultats, couleurs):
+        ax_a.plot(t, 100 * res["moyen"], color=couleur, lw=1, label=f"dt = {res['dt']:g} s")
+        ax_a.fill_between(t, 100 * (res["moyen"] - res["incertitude"]),
+                          100 * (res["moyen"] + res["incertitude"]), color=couleur, alpha=0.2)
+        ax_b.errorbar(res["dt"], 100 * res["moyen"][-1], yerr=100 * res["incertitude"][-1],
+                      fmt="o", color=couleur, capsize=4)
+    ax_a.plot(t, 100 * biais_bord, "k--", lw=1.5, label="biais prédit (effet de bord)")
+    ax_a.axhline(0, color="gray", lw=0.8)
+    ax_a.set_xlim(t[0], t[-1])
+    ax_a.set_xlabel("t (s)")
+    ax_a.set_ylabel("écart relatif moyen sur N_A (%)")
+    ax_a.set_title("(a) Écart à la loi d'action de masse au cours du temps", fontsize=10)
+    ax_a.legend(fontsize=8)
+    ax_a.grid(alpha=0.3)
+
+    dts = [res["dt"] for res in resultats]
+    ax_b.axhline(100 * biais_bord[-1], color="k", ls="--", lw=1.5, label="biais prédit (effet de bord)")
+    ax_b.axhline(0, color="gray", lw=0.8)
+    ax_b.set_xscale("log")
+    ax_b.set_xticks(dts)
+    ax_b.set_xticklabels([f"{dt:g}" for dt in dts])
+    ax_b.minorticks_off()
+    ax_b.set_xlabel("dt (s)")
+    ax_b.set_ylabel(f"écart relatif sur N_A à t = {t[-1]:g} s (%)")
+    ax_b.set_title("(b) Écart final en fonction du pas de temps", fontsize=10)
+    ax_b.legend(fontsize=8)
+    ax_b.grid(alpha=0.3)
+
+    fig.suptitle("Convergence en dt (p/dt constant)\n" + _texte_params(params), fontsize=9)
+    fig.tight_layout()
+    return _enregistrer(fig, nom, "convergence_dt")
+
+
+def plot_convergence_n(resultats, t_final, params=None, nom=None):
+    """
+    Figure de convergence en N : écart de N_A à la loi d'action de masse quand N augmente.
+
+    (a) écart quadratique moyen (biais + fluctuations) en fonction de N, en échelle
+        log-log, avec une droite de pente -1/2 en référence ; (b) écart relatif moyen à
+        l'instant final, comparé au biais prédit par la correction de bord.
+
+    Paramètres
+    ----------
+    resultats : list de dict
+        Un dict par valeur de N, avec les clés "N" (N_A + N_B), "rms", "rms_incertitude",
+        "final", "final_incertitude" et "biais_bord" (sans unité).
+    t_final : float
+        Instant final (s), pour les légendes.
+    params : dict ou None
+        Paramètres communs à afficher dans le titre.
+    nom : str ou None
+        Nom du fichier (sans extension) dans figures/ ; brouillon horodaté par défaut.
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier PNG enregistré.
+    """
+    n = np.array([res["N"] for res in resultats])
+    rms = np.array([res["rms"] for res in resultats])
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    ax_a.errorbar(n, 100 * rms, yerr=[100 * res["rms_incertitude"] for res in resultats],
+                  fmt="o", color="tab:blue", capsize=4, label="simulations")
+    reference = 100 * rms[-1] * np.sqrt(n[-1] / n)  # pente -1/2 passant par le plus grand N
+    ax_a.plot(n, reference, "k:", label="référence ∝ N$^{-1/2}$")
+    ax_a.set_xscale("log")
+    ax_a.set_yscale("log")
+    ax_a.set_xticks(n)
+    ax_a.set_xticklabels([str(v) for v in n])
+    ax_a.minorticks_off()
+    ax_a.set_xlabel("N = N_A + N_B")
+    ax_a.set_ylabel("écart relatif quadratique moyen sur N_A (%)")
+    ax_a.set_title("(a) Écart total (biais + fluctuations)", fontsize=10)
+    ax_a.legend(fontsize=8)
+    ax_a.grid(alpha=0.3, which="both")
+
+    ax_b.errorbar(n, [100 * res["final"] for res in resultats],
+                  yerr=[100 * res["final_incertitude"] for res in resultats],
+                  fmt="o", color="tab:blue", capsize=4, label="simulations (moyenne)")
+    ax_b.plot(n, [100 * res["biais_bord"] for res in resultats], "k--", marker="x",
+              label="biais prédit (effet de bord)")
+    ax_b.axhline(0, color="gray", lw=0.8)
+    ax_b.set_xscale("log")
+    ax_b.set_xticks(n)
+    ax_b.set_xticklabels([str(v) for v in n])
+    ax_b.minorticks_off()
+    ax_b.set_xlabel("N = N_A + N_B")
+    ax_b.set_ylabel(f"écart relatif moyen sur N_A à t = {t_final:g} s (%)")
+    ax_b.set_title("(b) Biais à l'instant final", fontsize=10)
+    ax_b.legend(fontsize=8)
+    ax_b.grid(alpha=0.3)
+
+    fig.suptitle("Convergence en N (concentration initiale constante)\n" + _texte_params(params),
+                 fontsize=9)
+    fig.tight_layout()
+    return _enregistrer(fig, nom, "convergence_N")
+
+
 def plot_populations(t, comptages, comptages_theorie, params=None, nom=None):
     """
     Trace l'évolution des populations A, B, C : simulation (trait plein) et théorie (tirets).

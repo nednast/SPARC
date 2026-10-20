@@ -160,11 +160,21 @@ Pour l'instant (issue #8), ce script lance la simulation avec réaction A + B �
 
 Durée : environ 8 s.
 
-Les fonctions de `src/theory.py` se testent seules (comparaison de `solve_ivp` à la solution exacte, conservation) :
+Les fonctions de `src/theory.py` se testent seules (comparaison de `solve_ivp` à la solution exacte, conservation, correction de bord de k vérifiée par tirage aléatoire) :
 
 ```bash
 python src/theory.py
 ```
+
+Étude de convergence (issue #9) :
+
+```bash
+python src/run_simulation.py --convergence
+```
+
+- **en dt** : dt = 0.01, 0.005 et 0.0025 s, avec p/dt constant pour garder le même k, 10 simulations indépendantes par valeur ;
+- **en N** : N = N_A + N_B = 200, 500, 1000 et 2000 (N_A = N_B), à concentration initiale constante (0.05 µm⁻²), la boîte étant agrandie avec N ; 40, 20, 10 et 10 simulations respectivement ;
+- écrit `resultats/convergence_dt.csv`, `resultats/convergence_N.csv`, `figures/fig_convergence_dt.png` et `figures/fig_convergence_N.png`. Les paramètres de l'étude sont dans `src/config.py` (`FACTEURS_DT`, `N_RUNS_DT`, `N_TOTAUX`, `N_RUNS_N`).
 
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
@@ -174,8 +184,12 @@ python src/theory.py
 
 | Simulation | Paramètres | Durée |
 |---|---|---|
-| Couche 1, configuration de référence | *à définir* | *à mesurer* |
-| Études de convergence (dt, N) | *à définir* | *à mesurer* |
+| Couche 1, configuration de référence (`python src/run_simulation.py`) | N_A = N_B = 500, 5000 pas | ≈ 8 s |
+| Études de convergence (`--convergence`) | voir ci-dessus | ≈ 13 min |
+| — une simulation, N = 200 / 500 / 1000 / 2000 (dt = 0.01 s) | 5000 pas | 0.3 / 1.2 / 5.8 / 27.8 s |
+| — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
+
+Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*. Le coût d'un pas croît comme N_A × N_B (détection naïve des collisions).
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
 
 ---
@@ -216,8 +230,8 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 |---|---|---|---|
 | 1 | Configuration initiale (couche 1) | | |
 | 2 | Populations A, B, C : simulation vs loi d'action de masse (`fig_populations_couche1.png`) | `python src/run_simulation.py` | N_A = N_B = 500, L = 100 µm, D = 10 µm²/s, dt = 0.01 s, 5000 pas, r_c = 2 µm, p = 0.001, k = 1.257 µm²/s, SEED = 42 |
-| 3 | Convergence en dt | | |
-| 4 | Convergence en N | | |
+| 3 | Convergence en dt (`fig_convergence_dt.png`) | `python src/run_simulation.py --convergence` | N_A = N_B = 500, L = 100 µm, D = 10 µm²/s, r_c = 2 µm, dt = 0.01 / 0.005 / 0.0025 s avec p = 0.001 / 0.0005 / 0.00025 (k = 1.257 µm²/s), 50 s simulées, 10 simulations par dt, SEED = 42 |
+| 4 | Convergence en N (`fig_convergence_N.png`) | `python src/run_simulation.py --convergence` | N = N_A + N_B = 200 / 500 / 1000 / 2000, [A]₀ = [B]₀ = 0.05 µm⁻² (L = 44.7 / 70.7 / 100 / 141.4 µm), D = 10 µm²/s, dt = 0.01 s, r_c = 2 µm, p = 0.001, 50 s simulées, 40 / 20 / 10 / 10 simulations, SEED = 42 |
 | … | | | |
 
 ---
@@ -230,6 +244,22 @@ Critères quantitatifs retenus (détaillés dans le rapport) :
 - **Sensibilité à la discrétisation :** stabilité des résultats lorsque dt diminue (dt, dt/2, dt/4) et lorsque N augmente.
 - **Comparaison à la théorie :** loi d'action de masse (couche 1), lois de réaction-diffusion pour le front (couche 2), convergence en N vers le champ moyen (couche 4).
 - **Cohérence dimensionnelle :** unités de toutes les grandeurs et vérification des ordres de grandeur.
+
+### Résultats de l'étude de convergence (couche 1, issue #9)
+
+Écart relatif de N_A à la loi d'action de masse, (N_A simulé − N_A théorique) / N_A théorique : moyenne sur les simulations ± écart-type de la moyenne. « Écart final » : à t = 50 s. « Écart quadratique » : racine de la moyenne dans le temps des écarts au carré (biais + fluctuations), moyennée sur les simulations. « Bord prédit » : écart attendu si l'on remplace k par k × `border_factor(r_c, L)`.
+
+| Étude | Valeur | Simulations | Écart final | Bord prédit | Écart quadratique |
+|---|---|---|---|---|---|
+| dt (N = 1000) | 0.01 s | 10 | +0.3 % ± 1.8 % | +1.3 % | 3.7 % |
+| | 0.005 s | 10 | +0.5 % ± 1.9 % | +1.3 % | 5.4 % |
+| | 0.0025 s | 10 | +2.3 % ± 1.6 % | +1.3 % | 3.3 % |
+| N (dt = 0.01 s) | 200 | 40 | +5.1 % ± 2.1 % | +2.9 % | 9.2 % ± 0.7 % |
+| | 500 | 20 | +3.9 % ± 1.3 % | +1.8 % | 5.2 % ± 0.7 % |
+| | 1000 | 10 | +3.0 % ± 1.9 % | +1.3 % | 4.8 % ± 0.7 % |
+| | 2000 | 10 | +5.4 % ± 0.9 % | +0.9 % | 3.7 % ± 0.6 % |
+
+Données brutes : `resultats/convergence_dt.csv` et `resultats/convergence_N.csv`.
 
 ---
 
