@@ -7,10 +7,12 @@ Lancement depuis la racine du dépôt :
 
 import numpy as np
 
-from analysis import plot_snapshot, count_species, save_populations, load_populations
+from analysis import (plot_snapshot, plot_populations, count_species, save_populations,
+                      load_populations)
 from config import SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C
 from particles import init_particles, step
 from reactions import reaction_step
+from theory import rate_constant, solve_mass_action
 
 
 def run_simulation(n_steps, positions, labels, D, dt, L, r_c, p, rng, save_every=None):
@@ -98,13 +100,27 @@ if __name__ == "__main__":
     print(f"Populations enregistrées : {chemin} — relecture identique : "
           f"{np.allclose(t_relu, t) and np.array_equal(comptages_relus, comptages)}")
 
+    # Test 3 — comparaison à la loi d'action de masse (issue #8) : k = p·π·r_c²/dt,
+    # résolution par solve_ivp en concentrations (µm⁻²), puis retour en nombres de particules (× L²)
+    k = rate_constant(P, R_C, DT)
+    c0 = comptages[0] / L ** 2
+    comptages_theorie = solve_mass_action(c0, k, t) * L ** 2
+    ecart_rel = np.abs(n_a - comptages_theorie[:, A]) / comptages_theorie[:, A]
+    print(f"Loi d'action de masse : k = {k:.4f} µm²/s, "
+          f"N_A(t = {N_STEPS * DT:.0f} s) simulé = {n_a[-1]}, théorique = {comptages_theorie[-1, A]:.1f}")
+    print(f"  écart relatif sur N_A : moyen = {ecart_rel.mean():.1%}, max = {ecart_rel.max():.1%}")
+    chemin = plot_populations(t, comptages, comptages_theorie,
+                              params=params | {"k": f"{k:.3g} µm²/s"},
+                              nom="fig_populations_couche1")
+    print(f"Figure enregistrée : {chemin}")
+
     # Instantanés : début, après 300 pas, fin
     for n in (0, 300, N_STEPS):
         _, pos, lab = historique[n]
         chemin = plot_snapshot(pos, lab, n * DT, L, params=params)
         print(f"Instantané enregistré : {chemin}")
 
-    # Test 3 — validation de la diffusion (sans réaction, p = 0) : en 2D, le déplacement
+    # Test 4 — validation de la diffusion (sans réaction, p = 0) : en 2D, le déplacement
     # quadratique moyen vaut <r²> = 4·D·t en milieu libre. On le mesure sur une durée courte
     # (déplacement typique sqrt(4Dt) ≈ 6 µm << L) et uniquement pour les particules
     # parties à plus de 15 µm des parois, que les parois n'ont presque pas pu atteindre.

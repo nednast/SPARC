@@ -149,15 +149,22 @@ Toutes les commandes sont exécutées depuis la racine du dépôt, environnement
 python src/run_simulation.py
 ```
 
-Pour l'instant (issue #7), ce script lance la simulation avec réaction A + B → C sur 5000 pas (50 s simulées), puis :
+Pour l'instant (issue #8), ce script lance la simulation avec réaction A + B → C sur 5000 pas (50 s simulées), puis :
 
 - vérifie le confinement des particules dans la boîte et la conservation de la matière (N_A + N_C et N_B + N_C constants) ;
 - affiche les populations à t = 0, 3 et 50 s ;
 - enregistre l'historique des populations dans `resultats/populations_couche1.csv` ;
+- compare les populations à la loi d'action de masse (k = p·π·r_c²/dt, résolue par `solve_ivp`) et enregistre `figures/fig_populations_couche1.png` ;
 - sauvegarde trois instantanés dans `figures/` ;
 - compare le déplacement quadratique moyen sans réaction à la valeur théorique 4·D·t.
 
-Durée : environ 7 s.
+Durée : environ 8 s.
+
+Les fonctions de `src/theory.py` se testent seules (comparaison de `solve_ivp` à la solution exacte, conservation) :
+
+```bash
+python src/theory.py
+```
 
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
@@ -194,7 +201,7 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 | n_steps | nombre de pas de temps (durée simulée = n_steps · dt) | — | 5000 (50 s) |
 | r_c | rayon de réaction | µm | 2 (provisoire) |
 | p | probabilité de réaction d'une paire en collision, par pas de temps | — | 0.001 |
-| k | constante de vitesse macroscopique (2D) | µm²/s | *(issue #8)* |
+| k | constante de vitesse macroscopique (2D), k = p·π·r_c²/dt | µm²/s | 1.257 |
 | k₂ | constante de la réaction autocatalytique | µm²/s | *(issue #14)* |
 | k_rev | constante de la réaction inverse | 1/s | *(issue #15)* |
 | SEED | graine du générateur aléatoire | — | 42 |
@@ -208,7 +215,7 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 | Figure | Description | Commande | Paramètres |
 |---|---|---|---|
 | 1 | Configuration initiale (couche 1) | | |
-| 2 | Populations A, B, C : simulation vs loi d'action de masse | | |
+| 2 | Populations A, B, C : simulation vs loi d'action de masse (`fig_populations_couche1.png`) | `python src/run_simulation.py` | N_A = N_B = 500, L = 100 µm, D = 10 µm²/s, dt = 0.01 s, 5000 pas, r_c = 2 µm, p = 0.001, k = 1.257 µm²/s, SEED = 42 |
 | 3 | Convergence en dt | | |
 | 4 | Convergence en N | | |
 | … | | | |

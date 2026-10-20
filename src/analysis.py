@@ -90,6 +90,61 @@ def load_populations(nom):
     return donnees[:, 0], donnees[:, 1:4].astype(int)
 
 
+def plot_populations(t, comptages, comptages_theorie, params=None, nom=None):
+    """
+    Trace l'évolution des populations A, B, C : simulation (trait plein) et théorie (tirets).
+
+    Paramètres
+    ----------
+    t : ndarray (n,)
+        Instants (s).
+    comptages : ndarray (n, 3)
+        Nombres de particules A, B, C dans la simulation.
+    comptages_theorie : ndarray (n, 3)
+        Nombres de particules A, B, C prédits par la théorie (concentrations × L²).
+    params : dict ou None
+        Paramètres de simulation à afficher sous le titre.
+    nom : str ou None
+        Nom du fichier (sans extension) dans figures/. Par défaut, brouillon horodaté
+        « tmp_populations_<date>-<heure>-<microsecondes> ».
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier PNG enregistré.
+    """
+    # Si N_A = N_B au départ, les courbes de A et B sont confondues : A est tracé plus
+    # épais, en dessous, pour qu'il reste visible autour de B.
+    epaisseurs = {A: 3.0, B: 1.2, C: 1.2}
+    fig, ax = plt.subplots(figsize=(7.5, 5))
+    for espece in (A, B, C):
+        couleur = COULEURS_ESPECES[espece]
+        ax.plot(t, comptages[:, espece], color=couleur, lw=epaisseurs[espece],
+                label=f"{NOMS_ESPECES[espece]} (simulation)")
+        ax.plot(t, comptages_theorie[:, espece], color=couleur, ls="--", lw=epaisseurs[espece] + 0.3,
+                label=f"{NOMS_ESPECES[espece]} (action de masse)")
+
+    ax.set_xlim(t[0], t[-1])
+    ax.set_ylim(bottom=0)
+    ax.set_xlabel("t (s)")
+    ax.set_ylabel("Nombre de particules")
+    titre = "Populations : simulation vs loi d'action de masse"
+    if params:
+        titre += "\n" + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items())
+    ax.set_title(titre, fontsize=9)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
+    ax.grid(alpha=0.3)
+
+    if nom is None:
+        horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        nom = f"tmp_populations_{horodatage}"
+    DOSSIER_FIGURES.mkdir(exist_ok=True)
+    chemin = DOSSIER_FIGURES / f"{nom}.png"
+    fig.savefig(chemin, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return chemin
+
+
 def plot_snapshot(positions, labels, t, L, params=None, nom=None):
     """
     Trace l'état du système à l'instant t (nuage de points coloré par espèce) et l'enregistre.
