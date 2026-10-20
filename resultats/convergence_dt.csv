@@ -1,0 +1,5 @@
+# Paramètres : N_A = 500, N_B = 500, L = 100 µm, D = 10 µm²/s, r_c = 2 µm, k = 1.26 µm²/s, simulations par dt = 10, SEED = 42
+# dt (s),p,ecart final,incertitude ecart final,biais de bord predit,ecart rms,incertitude ecart rms,duree par simulation (s)
+0.01,0.001,0.00309374,0.0182502,0.0129959,0.0374492,0.00632692,5.76359
+0.005,0.0005,0.00475037,0.0185238,0.0129959,0.0541949,0.00594082,11.6067
+0.0025,0.00025,0.0229734,0.0159211,0.0129959,0.0327618,0.00441981,23.2985

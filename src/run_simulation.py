@@ -2,17 +2,22 @@
 Point d'entrée de la simulation SPARC : boucle temporelle.
 
 Lancement depuis la racine du dépôt :
-    python src/run_simulation.py
+    python src/run_simulation.py                 # simulation de référence et vérifications (~8 s)
+    python src/run_simulation.py --convergence   # étude de convergence en dt et en N (issue #9)
 """
+
+import argparse
+import time
 
 import numpy as np
 
-from analysis import (plot_snapshot, plot_populations, count_species, save_populations,
-                      load_populations)
-from config import SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C
+from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n,
+                      count_species, relative_gaps, save_populations, load_populations, save_table)
+from config import (SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C,
+                    FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N)
 from particles import init_particles, step
 from reactions import reaction_step
-from theory import rate_constant, solve_mass_action
+from theory import rate_constant, border_factor, solve_mass_action
 
 
 def run_simulation(n_steps, positions, labels, D, dt, L, r_c, p, rng, save_every=None):
@@ -68,7 +73,147 @@ def run_simulation(n_steps, positions, labels, D, dt, L, r_c, p, rng, save_every
     return positions, labels, comptages, historique
 
 
-if __name__ == "__main__":
+def run_replicas(n_a, n_b, L, D, dt, n_steps, r_c, p, n_runs, rng):
+    """
+    Lance n_runs simulations indépendantes (nouvelles positions initiales à chaque fois).
+
+    Paramètres
+    ----------
+    n_a, n_b : int
+        Nombres initiaux de particules A et B.
+    L : float
+        Côté de la boîte carrée (µm).
+    D : float
+        Coefficient de diffusion (µm²/s).
+    dt : float
+        Pas de temps (s).
+    n_steps : int
+        Nombre de pas de temps de chaque simulation.
+    r_c : float
+        Rayon de réaction (µm).
+    p : float
+        Probabilité de réaction d'une paire en collision par pas de temps.
+    n_runs : int
+        Nombre de simulations.
+    rng : numpy.random.Generator
+        Générateur aléatoire, partagé par toutes les simulations.
+
+    Retour
+    ------
+    trajectoires : ndarray (n_runs, n_steps + 1)
+        N_A à chaque pas, pour chaque simulation.
+    duree : float
+        Temps de calcul moyen d'une simulation (s, temps réel de la machine).
+    """
+    trajectoires = np.zeros((n_runs, n_steps + 1))
+    debut = time.perf_counter()
+    for r in range(n_runs):
+        positions, labels = init_particles(n_a, n_b, L, rng)
+        _, _, comptages, _ = run_simulation(n_steps, positions, labels, D, dt, L, r_c, p, rng)
+        trajectoires[r] = comptages[:, A]
+    return trajectoires, (time.perf_counter() - debut) / n_runs
+
+
+def convergence_dt(rng):
+    """
+    Convergence en dt (issue #9) : simulations avec dt = DT / facteur, à p / dt constant.
+
+    p est une probabilité par pas : en divisant dt par 2 sans toucher à p, on diviserait
+    aussi k par 2 et on changerait la physique. On divise donc p par le même facteur,
+    pour que k = p·π·r_c²/dt reste identique. La durée simulée (N_STEPS·DT) est la même
+    pour tous les dt, et on compare N_A aux instants communs multiples de DT.
+
+    Écrit resultats/convergence_dt.csv et figures/fig_convergence_dt.png.
+    """
+    t = np.arange(N_STEPS + 1) * DT  # instants communs (s)
+    k = rate_constant(P, R_C, DT)
+    c0 = np.array([N_A, N_B, 0]) / L ** 2
+    n_theorie = solve_mass_action(c0, k, t)[:, A] * L ** 2
+    n_bord = solve_mass_action(c0, k * border_factor(R_C, L), t)[:, A] * L ** 2
+    biais_bord = (n_bord - n_theorie) / n_theorie
+
+    print(f"Convergence en dt : N_A = N_B = {N_A}, L = {L:g} µm, k = {k:.4f} µm²/s, "
+          f"{N_RUNS_DT} simulations par dt, biais de bord prédit à t = {t[-1]:g} s : {biais_bord[-1]:+.2%}")
+    resultats = []
+    for facteur in FACTEURS_DT:
+        dt, p = DT / facteur, P / facteur
+        trajectoires, duree = run_replicas(N_A, N_B, L, D, dt, N_STEPS * facteur, R_C, p, N_RUNS_DT, rng)
+        ecarts = relative_gaps(trajectoires[:, ::facteur], n_theorie)  # un point sur `facteur` : instants de t
+        resultats.append({"dt": dt, "p": p, "duree": duree, **ecarts})
+        print(f"  dt = {dt:<7g} s, p = {p:<8g} : écart final = {ecarts['moyen'][-1]:+.2%} "
+              f"± {ecarts['incertitude'][-1]:.2%}, écart quadratique moyen = {ecarts['rms']:.2%}, "
+              f"{duree:.1f} s par simulation")
+
+    params = {"N_A": N_A, "N_B": N_B, "L": f"{L:g} µm", "D": f"{D:g} µm²/s", "r_c": f"{R_C:g} µm",
+              "k": f"{k:.3g} µm²/s", "simulations par dt": N_RUNS_DT, "SEED": SEED}
+    tableau = [[r["dt"], r["p"], r["moyen"][-1], r["incertitude"][-1], biais_bord[-1], r["rms"],
+                r["rms_incertitude"], r["duree"]] for r in resultats]
+    chemin = save_table("convergence_dt", ["dt (s)", "p", "ecart final", "incertitude ecart final",
+                                           "biais de bord predit", "ecart rms", "incertitude ecart rms",
+                                           "duree par simulation (s)"], tableau, params)
+    print(f"  Tableau enregistré : {chemin}")
+    chemin = plot_convergence_dt(t, resultats, biais_bord, params, nom="fig_convergence_dt")
+    print(f"  Figure enregistrée : {chemin}")
+
+
+def convergence_n(rng):
+    """
+    Convergence en N (issue #9) : N = N_A + N_B variable, avec N_A = N_B.
+
+    La concentration initiale est gardée égale à celle de la configuration de référence
+    (N_A / L² = 0.05 µm⁻²) : la boîte est agrandie, L = sqrt(N_A / c0). Ainsi la
+    loi d'action de masse prédit la même évolution des concentrations pour tous les N,
+    et seul le nombre de particules change.
+
+    Écrit resultats/convergence_N.csv et figures/fig_convergence_N.png.
+    """
+    t = np.arange(N_STEPS + 1) * DT  # instants (s)
+    k = rate_constant(P, R_C, DT)
+    c_initiale = N_A / L ** 2  # concentration initiale de A et de B (µm⁻²)
+
+    print(f"Convergence en N : [A]₀ = [B]₀ = {c_initiale:g} µm⁻², dt = {DT:g} s, k = {k:.4f} µm²/s")
+    resultats = []
+    for n_total, n_runs in zip(N_TOTAUX, N_RUNS_N):
+        n_a = n_total // 2
+        L_n = np.sqrt(n_a / c_initiale)  # côté de la boîte (µm)
+        c0 = np.array([n_a, n_a, 0]) / L_n ** 2
+        n_theorie = solve_mass_action(c0, k, t)[:, A] * L_n ** 2
+        n_bord = solve_mass_action(c0, k * border_factor(R_C, L_n), t)[:, A] * L_n ** 2
+        trajectoires, duree = run_replicas(n_a, n_a, L_n, D, DT, N_STEPS, R_C, P, n_runs, rng)
+        ecarts = relative_gaps(trajectoires, n_theorie)
+        resultats.append({"N": n_total, "L": L_n, "n_runs": n_runs, "duree": duree,
+                          "rms": ecarts["rms"], "rms_incertitude": ecarts["rms_incertitude"],
+                          "final": ecarts["moyen"][-1], "final_incertitude": ecarts["incertitude"][-1],
+                          "biais_bord": n_bord[-1] / n_theorie[-1] - 1})
+        print(f"  N = {n_total:<5d} (L = {L_n:5.1f} µm, {n_runs} simulations) : "
+              f"écart quadratique moyen = {ecarts['rms']:.2%} ± {ecarts['rms_incertitude']:.2%}, "
+              f"écart final = {ecarts['moyen'][-1]:+.2%} ± {ecarts['incertitude'][-1]:.2%} "
+              f"(bord prédit : {resultats[-1]['biais_bord']:+.2%}), {duree:.1f} s par simulation")
+
+    params = {"[A]₀ = [B]₀": f"{c_initiale:g} µm⁻²", "D": f"{D:g} µm²/s", "dt": f"{DT:g} s",
+              "r_c": f"{R_C:g} µm", "p": P, "k": f"{k:.3g} µm²/s", "SEED": SEED}
+    tableau = [[r["N"], r["L"], r["n_runs"], r["rms"], r["rms_incertitude"], r["final"],
+                r["final_incertitude"], r["biais_bord"], r["duree"]] for r in resultats]
+    chemin = save_table("convergence_N", ["N", "L (um)", "simulations", "ecart rms", "incertitude ecart rms",
+                                          "ecart final", "incertitude ecart final", "biais de bord predit",
+                                          "duree par simulation (s)"], tableau, params)
+    print(f"  Tableau enregistré : {chemin}")
+    chemin = plot_convergence_n(resultats, t[-1], params, nom="fig_convergence_N")
+    print(f"  Figure enregistrée : {chemin}")
+
+
+def convergence_study():
+    """Étude de convergence complète (issue #9) : en dt puis en N. Durée : plusieurs minutes."""
+    rng = np.random.default_rng(SEED)
+    convergence_dt(rng)
+    convergence_n(rng)
+
+
+def check_layer1():
+    """
+    Simulation de référence de la couche 1 et vérifications : confinement, conservation,
+    comparaison à la loi d'action de masse, instantanés, déplacement quadratique moyen.
+    """
     rng = np.random.default_rng(SEED)
     positions_init, labels_init = init_particles(N_A, N_B, L, rng)
 
@@ -135,3 +280,13 @@ if __name__ == "__main__":
     print(f"Déplacement quadratique moyen après {t_court:.1f} s ({loin.sum()} particules) : "
           f"mesuré = {msd:.1f} ± {erreur_stat:.1f} µm², théorique 4Dt = {theorie:.1f} µm², "
           f"écart = {abs(msd - theorie) / erreur_stat:.1f} écart-type(s)")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Simulation SPARC de la réaction A + B → C.")
+    parser.add_argument("--convergence", action="store_true",
+                        help="lance l'étude de convergence en dt et en N (issue #9, une quinzaine de minutes)")
+    if parser.parse_args().convergence:
+        convergence_study()
+    else:
+        check_layer1()

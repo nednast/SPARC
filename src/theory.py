@@ -47,6 +47,34 @@ def rate_constant(p, r_c, dt):
     return p * np.pi * r_c ** 2 / dt
 
 
+def border_factor(r_c, L):
+    """
+    Correction de bord de k : nombre réel de paires en collision / nombre sans paroi.
+
+    rate_constant suppose que chaque particule « voit » un disque complet de rayon r_c.
+    Près d'une paroi, une partie de ce disque sort de la boîte, donc il y a un peu moins
+    de paires en collision. Pour deux points tirés uniformément dans un carré de côté L,
+    la probabilité d'être à distance < r (avec r <= L) vaut
+        π·r²/L² - 8·r³/(3·L³) + r⁴/(2·L⁴),
+    au lieu de π·r²/L² sans paroi. Le rapport des deux donne le facteur renvoyé.
+    Cette formule est vérifiée par tirage aléatoire dans le bloc de test ci-dessous.
+
+    Paramètres
+    ----------
+    r_c : float
+        Rayon de réaction (µm), r_c <= L.
+    L : float
+        Côté de la boîte carrée (µm).
+
+    Retour
+    ------
+    float
+        Facteur sans unité, légèrement inférieur à 1 : k_effectif = k · border_factor(r_c, L).
+    """
+    x = r_c / L
+    return 1 - 8 * x / (3 * np.pi) + x ** 2 / (2 * np.pi)
+
+
 def mass_action_rhs(t, c, k):
     """
     Second membre de la loi d'action de masse pour A + B → C, au format de solve_ivp.
@@ -149,6 +177,24 @@ if __name__ == "__main__":
     derive = max(np.max(np.abs(c[:, 0] + c[:, 2] - c0[0])), np.max(np.abs(c[:, 1] + c[:, 2] - c0[1])))
     print(f"Test 2 — conservation de la matière : dérive max = {derive:.1e} µm⁻²")
     assert derive < 1e-9
+
+    # Test 3 — correction de bord : proportion de paires à distance < r_c parmi des paires
+    # de points tirés uniformément dans une boîte, comparée à la formule de border_factor.
+    # On prend une petite boîte (L = 10 µm) pour que la correction (≈ 16 %) soit bien
+    # plus grande que l'incertitude du tirage.
+    from config import SEED
+    rng = np.random.default_rng(SEED)
+    L_test, n_paires = 10.0, 1_000_000
+    p1 = rng.uniform(0, L_test, size=(n_paires, 2))
+    p2 = rng.uniform(0, L_test, size=(n_paires, 2))
+    proportion = np.mean(np.sum((p1 - p2) ** 2, axis=1) < R_C ** 2)
+    sans_paroi = np.pi * R_C ** 2 / L_test ** 2
+    predite = sans_paroi * border_factor(R_C, L_test)
+    incertitude = np.sqrt(proportion * (1 - proportion) / n_paires)  # écart-type binomial
+    print(f"Test 3 — L = {L_test:g} µm, r_c = {R_C:g} µm : paires en collision, tirage = {proportion:.4f} "
+          f"± {incertitude:.4f}, formule = {predite:.4f}, sans correction = {sans_paroi:.4f}")
+    assert abs(proportion - predite) < 3 * incertitude
+    print(f"         facteur de bord pour la boîte de référence (L = {L:g} µm) : {border_factor(R_C, L):.4f}")
 
     # Ordre de grandeur : temps de demi-réaction pour [A]₀ = [B]₀, t_1/2 = 1 / (k·[A]₀)
     print(f"Temps de demi-réaction 1/(k·[A]₀) = {1 / (k * c0[0]):.1f} s")
