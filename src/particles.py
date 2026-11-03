@@ -122,7 +122,8 @@ if __name__ == "__main__":
           f"y dans [{positions[:, 1].min():.2f}, {positions[:, 1].max():.2f}] µm")
 
     chemin = plot_snapshot(positions, labels, 0.0, L_BOITE,
-                           params={"N_A": N_A, "N_B": N_B, "L": f"{L_BOITE:g} µm"})
+                           params={"N_A": N_A, "N_B": N_B, "L": f"{L_BOITE:g} µm"},
+                           nom="tmp_snapshot_demo_initial")  # nom fixe : réécrit à chaque lancement
     print(f"Figure enregistrée : {chemin}")
 
     # Test 1 — reflect dans une boîte rectangulaire Lx = 200 µm, Ly = 50 µm, cas calculés à la main :

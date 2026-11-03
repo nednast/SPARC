@@ -175,6 +175,8 @@ def convergence_n(rng):
     print(f"Convergence en N : [A]₀ = [B]₀ = {c_initiale:g} µm⁻², dt = {DT:g} s, k = {k:.4f} µm²/s")
     resultats = []
     for n_total, n_runs in zip(N_TOTAUX, N_RUNS_N):
+        if n_total % 2:
+            raise ValueError(f"N_TOTAUX doit contenir des nombres pairs (N_A = N_B) : {n_total}")
         n_a = n_total // 2
         L_n = np.sqrt(n_a / c_initiale)  # côté de la boîte (µm)
         c0 = np.array([n_a, n_a, 0]) / L_n ** 2
@@ -228,6 +230,8 @@ def diffusion_study():
     t = np.arange(N_STEPS + 1) * DT  # instants (s)
     k = rate_constant(P, R_C, DT)
     c_initiale = N_A / L ** 2  # concentration de référence (µm⁻²)
+    if N_TOTAL_D % 2:
+        raise ValueError(f"N_TOTAL_D doit être pair (N_A = N_B) : {N_TOTAL_D}")
     n_a = N_TOTAL_D // 2
     L_d = np.sqrt(n_a / c_initiale)  # côté de la boîte (µm)
     c0 = np.array([n_a, n_a, 0]) / L_d ** 2
@@ -315,7 +319,8 @@ def check_layer1():
     # Instantanés : début, après 300 pas (multiple de 100, donc enregistré), fin
     for n in (0, 300, N_STEPS):
         pos, lab = etats[n]
-        chemin = plot_snapshot(pos, lab, n * DT, L, params=params)
+        # nom fixe (brouillon tmp_, ignoré par git) : réécrit à chaque lancement au lieu de s'accumuler
+        chemin = plot_snapshot(pos, lab, n * DT, L, params=params, nom=f"tmp_snapshot_couche1_t={n * DT:.2f}s")
         print(f"Instantané enregistré : {chemin}")
 
     # Test 4 — validation de la diffusion (sans réaction, p = 0) : en 2D, le déplacement
