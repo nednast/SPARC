@@ -62,17 +62,10 @@ def save_populations(nom, t, comptages, L, params=None):
         Chemin du fichier CSV enregistré.
     """
     concentrations = comptages / L ** 2
-    donnees = np.column_stack((t, comptages, concentrations))
-    entete = ""
-    if params:
-        entete += "Paramètres : " + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items()) + "\n"
-    entete += "t (s),N_A,N_B,N_C,c_A (µm^-2),c_B (µm^-2),c_C (µm^-2)"
-
-    DOSSIER_RESULTATS.mkdir(exist_ok=True)
-    chemin = DOSSIER_RESULTATS / f"{nom}.csv"
-    np.savetxt(chemin, donnees, delimiter=",", header=entete, encoding="utf-8",
-               fmt=["%.6g", "%d", "%d", "%d", "%.6e", "%.6e", "%.6e"])
-    return chemin
+    colonnes = ["t (s)", "N_A", "N_B", "N_C", "c_A (µm^-2)", "c_B (µm^-2)", "c_C (µm^-2)"]
+    # %d : comptages entiers exacts ; %.6e : concentrations en notation scientifique
+    return save_table(nom, colonnes, np.column_stack((t, comptages, concentrations)), params,
+                      fmt=["%.6g", "%d", "%d", "%d", "%.6e", "%.6e", "%.6e"])
 
 
 def load_populations(nom):
@@ -123,7 +116,7 @@ def relative_gaps(trajectoires, n_theorie):
     }
 
 
-def save_table(nom, colonnes, donnees, params=None):
+def save_table(nom, colonnes, donnees, params=None, fmt="%.6g"):
     """
     Enregistre un tableau de résultats numériques dans resultats/<nom>.csv.
 
@@ -137,6 +130,9 @@ def save_table(nom, colonnes, donnees, params=None):
         Valeurs du tableau.
     params : dict ou None
         Paramètres à noter en commentaire dans l'en-tête.
+    fmt : str ou list de str
+        Format d'écriture de np.savetxt, commun à toutes les colonnes ou un par colonne.
+        Par défaut 6 chiffres significatifs.
 
     Retour
     ------
@@ -145,11 +141,11 @@ def save_table(nom, colonnes, donnees, params=None):
     """
     entete = ""
     if params:
-        entete += "Paramètres : " + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items()) + "\n"
+        entete += "Paramètres : " + _texte_params(params) + "\n"
     entete += ",".join(colonnes)
     DOSSIER_RESULTATS.mkdir(exist_ok=True)
     chemin = DOSSIER_RESULTATS / f"{nom}.csv"
-    np.savetxt(chemin, np.asarray(donnees), delimiter=",", header=entete, encoding="utf-8", fmt="%.6g")
+    np.savetxt(chemin, np.asarray(donnees), delimiter=",", header=entete, encoding="utf-8", fmt=fmt)
     return chemin
 
 
@@ -161,6 +157,7 @@ def _texte_params(params):
 def _enregistrer(fig, nom, prefixe_brouillon):
     """Enregistre la figure en PNG 150 dpi dans figures/ (brouillon horodaté si nom est None)."""
     if nom is None:
+        # microsecondes incluses : deux figures créées dans la même seconde ne s'écrasent pas
         horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         nom = f"tmp_{prefixe_brouillon}_{horodatage}"
     DOSSIER_FIGURES.mkdir(exist_ok=True)
@@ -338,19 +335,11 @@ def plot_populations(t, comptages, comptages_theorie, params=None, nom=None):
     ax.set_ylabel("Nombre de particules")
     titre = "Populations : simulation vs loi d'action de masse"
     if params:
-        titre += "\n" + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items())
+        titre += "\n" + _texte_params(params)
     ax.set_title(titre, fontsize=9)
     ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
     ax.grid(alpha=0.3)
-
-    if nom is None:
-        horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        nom = f"tmp_populations_{horodatage}"
-    DOSSIER_FIGURES.mkdir(exist_ok=True)
-    chemin = DOSSIER_FIGURES / f"{nom}.png"
-    fig.savefig(chemin, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    return chemin
+    return _enregistrer(fig, nom, "populations")
 
 
 def plot_snapshot(positions, labels, t, L, params=None, nom=None):
@@ -392,16 +381,7 @@ def plot_snapshot(positions, labels, t, L, params=None, nom=None):
     ax.set_ylabel("y (µm)")
     titre = f"État du système à t = {t:.2f} s"
     if params:
-        titre += "\n" + ", ".join(f"{cle} = {valeur}" for cle, valeur in params.items())
+        titre += "\n" + _texte_params(params)
     ax.set_title(titre, fontsize=10)
     ax.legend(title="Espèce (effectif)", loc="upper left", bbox_to_anchor=(1.02, 1))
-
-    if nom is None:
-        # microsecondes incluses : deux figures créées dans la même seconde ne s'écrasent pas
-        horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        nom = f"tmp_snapshot_t={t:.2f}s_{horodatage}"
-    DOSSIER_FIGURES.mkdir(exist_ok=True)
-    chemin = DOSSIER_FIGURES / f"{nom}.png"
-    fig.savefig(chemin, dpi=150, bbox_inches="tight")
-    plt.close(fig)  # libère la mémoire quand on trace de nombreux instantanés
-    return chemin
+    return _enregistrer(fig, nom, f"snapshot_t={t:.2f}s")
