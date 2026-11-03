@@ -185,7 +185,8 @@ python src/run_simulation.py --diffusion
 - D = 2.5, 5, 10, 20 et 40 µm²/s, à p, dt et donc k fixés : la loi d'action de masse prédit la même évolution pour tous les D ;
 - N = N_A + N_B = 10 000 à la concentration de référence (L = 316 µm, effet de bord ≈ 0.5 %), 10 simulations par D ;
 - N_A est comparé à la loi d'action de masse **corrigée du bord** (k × `border_factor`), pour isoler l'effet de la diffusion ;
-- écrit `resultats/diffusion.csv` et `figures/fig_diffusion.png`. Paramètres dans `src/config.py` (`VALEURS_D`, `N_TOTAL_D`, `N_RUNS_D`).
+- puis, pour D = 10 et 40 µm²/s, variation de p (× 0.5, 1, 2, 4) à k·t_final constant : la simulation dure N_STEPS / facteur pas, si bien que la loi d'action de masse prédit le même N_A final pour tous les p ;
+- écrit `resultats/diffusion.csv`, `figures/fig_diffusion.png` et `resultats/diffusion_p.csv`. Paramètres dans `src/config.py` (`VALEURS_D`, `N_TOTAL_D`, `N_RUNS_D`, `FACTEURS_P`, `VALEURS_D_P`).
 
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
@@ -199,7 +200,7 @@ python src/run_simulation.py --diffusion
 | Études de convergence (`--convergence`) | voir ci-dessus | ≈ 13 min |
 | — une simulation, N = 200 / 500 / 1000 / 2000 (dt = 0.01 s) | 5000 pas | 0.3 / 1.2 / 5.8 / 27.8 s |
 | — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
-| Étude en D (`--diffusion`), avec la grille de cellules | 5 valeurs de D × 10 simulations, N = 10 000, 5000 pas | ≈ 7 min 20 s (≈ 8.8 s par simulation), mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
+| Étude de la diffusion (`--diffusion`), avec la grille de cellules | N = 10 000 ; 5 valeurs de D × 10 simulations (5000 pas), puis 8 couples (D, p) × 10 simulations (1250 à 10 000 pas) | ≈ 18 min 20 s (≈ 8.8 s par simulation de 5000 pas), mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
 
 Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*, avec l'ancienne détection naïve des collisions, dont le coût par pas croît comme N_A × N_B. Depuis, `detect_collisions` utilise une grille de cellules de côté r_c (coût à peu près proportionnel à N) et donne exactement les mêmes paires : les résultats sont inchangés, les durées sont plus courtes *(à re-mesurer)*.
@@ -288,11 +289,28 @@ La correction de bord n'explique pas tout l'écart : il reste environ +2 à +4 %
 | 20 | 10 | +1.9 % ± 0.5 % | 1.8 % ± 0.3 % |
 | 40 | 10 | +1.7 % ± 0.7 % | 1.5 % ± 0.4 % |
 
-Interprétation : `rate_constant` suppose une répartition uniforme des particules. Quand une paire A-B proche réagit, elle disparaît ; si la diffusion est lente, les voisins ne sont pas remplacés assez vite, il y a moins de paires à distance < r_c que prévu, et la réaction est plus lente que la loi d'action de masse (N_A simulé au-dessus de la théorie). C'est le régime limité par la diffusion décrit par Smoluchowski. De D = 2.5 à 10 µm²/s, l'écart est divisé par environ 2 à chaque doublement de D, comme attendu pour cet effet. Au-delà de D = 10 µm²/s, il diminue moins vite que 1/D (+1.9 % et +1.7 % pour une référence ∝ 1/D à +1.0 % et +0.5 %, soit 1.7 à 1.9 écart-type) : un petit reste de l'ordre de 1 % n'est pas expliqué à cette précision *(à vérifier : plus de simulations, ou variation de p à k·t constant)*.
+Interprétation : `rate_constant` suppose une répartition uniforme des particules. Quand une paire A-B proche réagit, elle disparaît ; si la diffusion est lente, les voisins ne sont pas remplacés assez vite, il y a moins de paires à distance < r_c que prévu, et la réaction est plus lente que la loi d'action de masse (N_A simulé au-dessus de la théorie). C'est le régime limité par la diffusion décrit par Smoluchowski. De D = 2.5 à 10 µm²/s, l'écart est divisé par environ 2 à chaque doublement de D, comme attendu pour cet effet. Au-delà de D = 10 µm²/s, il diminue moins vite que 1/D (+1.9 % et +1.7 % pour une référence ∝ 1/D à +1.0 % et +0.5 %, soit 1.7 à 1.9 écart-type).
+
+Variation de p à k·t_final constant (même avancement final prédit, N_A théorique final = 1212 dans tous les cas), mêmes N, L et définitions :
+
+| D (µm²/s) | p | Durée simulée | p/D (s/µm²) | Simulations | Écart final |
+|---|---|---|---|---|---|
+| 10 | 0.0005 | 100 s | 5·10⁻⁵ | 10 | +2.0 % ± 0.5 % |
+| 10 | 0.001 | 50 s | 1·10⁻⁴ | 10 | +2.1 % ± 0.4 % |
+| 10 | 0.002 | 25 s | 2·10⁻⁴ | 10 | +4.6 % ± 0.5 % |
+| 10 | 0.004 | 12.5 s | 4·10⁻⁴ | 10 | +7.8 % ± 0.6 % |
+| 40 | 0.0005 | 100 s | 1.25·10⁻⁵ | 10 | +1.5 % ± 0.6 % |
+| 40 | 0.001 | 50 s | 2.5·10⁻⁵ | 10 | +0.1 % ± 0.6 % |
+| 40 | 0.002 | 25 s | 5·10⁻⁵ | 10 | +1.6 % ± 0.4 % |
+| 40 | 0.004 | 12.5 s | 1·10⁻⁴ | 10 | +1.8 % ± 0.6 % |
+
+- À p/D égal, l'écart est le même à D = 10 et à D = 40 µm²/s, à moins d'un écart-type : +2.0 % et +1.6 % pour p/D = 5·10⁻⁵, +2.1 % et +1.8 % pour p/D = 10⁻⁴. L'écart est donc piloté par p/D, c'est-à-dire par le rapport entre la vitesse de réaction k et la diffusion, comme attendu pour la limitation par la diffusion.
+- L'écart croît nettement avec p/D au-delà de 10⁻⁴ (+4.6 % puis +7.8 %). En dessous, il reste entre 0 et 2 %, avec une incertitude de ±0.4 à ±0.6 % par point.
+- Question ouverte : l'écart s'annule-t-il quand p/D → 0 ? Une droite ajustée sur les 13 points des deux tableaux (pondérée par les incertitudes) donne une ordonnée à l'origine de +0.7 % ± 0.2 %. Cela peut venir d'un petit biais indépendant de p et de D, ou simplement d'une dépendance en p/D qui n'est pas linéaire (D·t varie aussi d'un point à l'autre). Cette précision ne permet pas de trancher *(à vérifier : plus de simulations aux petits p/D)*.
 
 Pour la configuration de référence (D = 10 µm²/s), l'écart dû à la diffusion (+2.6 % ± 0.3 %) est du même ordre que celui dû au bord (+1.3 % pour L = 100 µm).
 
-Données brutes : `resultats/diffusion.csv`. Figure : `figures/fig_diffusion.png`.
+Données brutes : `resultats/diffusion.csv` et `resultats/diffusion_p.csv`. Figure : `figures/fig_diffusion.png` (étude en D seulement).
 
 ---
 

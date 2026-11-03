@@ -55,4 +55,7 @@ VALEURS_D = (2.5, 5.0, 10.0, 20.0, 40.0)  # coefficients de diffusion testés (�
                                           # sqrt(4·D·DT) ≈ 1.3 µm : encore inférieur à R_C
 N_TOTAL_D = 10000   # N = N_A + N_B (N_A = N_B) à la concentration de référence (0.05 µm⁻²) :
                     # boîte de 316 µm, effet de bord faible (≈ 0.5 %)
-N_RUNS_D = 10       # simulations indépendantes par valeur de D
+N_RUNS_D = 10       # simulations indépendantes par valeur de D (et par couple (D, p) ci-dessous)
+FACTEURS_P = (0.5, 1, 2, 4)  # 2e partie : p = P·facteur pendant N_STEPS / facteur pas, donc k·t_final
+                             # constant (même avancement prédit). N_STEPS / facteur doit être entier
+VALEURS_D_P = (10.0, 40.0)   # coefficients de diffusion (µm²/s) pour lesquels on fait varier p

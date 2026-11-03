@@ -15,7 +15,8 @@ import numpy as np
 from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n, plot_diffusion,
                       count_species, relative_gaps, save_populations, load_populations, save_table)
 from config import (SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C,
-                    FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N, VALEURS_D, N_TOTAL_D, N_RUNS_D)
+                    FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N, VALEURS_D, N_TOTAL_D, N_RUNS_D,
+                    FACTEURS_P, VALEURS_D_P)
 from particles import init_particles, step
 from reactions import reaction_step
 from theory import rate_constant, border_factor, solve_mass_action
@@ -224,7 +225,12 @@ def diffusion_study():
     Cet écart doit donc diminuer quand D augmente. On compare N_A à la loi d'action de masse
     déjà corrigée du bord (k · border_factor), pour isoler l'effet de la diffusion.
 
-    Écrit resultats/diffusion.csv et figures/fig_diffusion.png.
+    2e partie : variation de p à k·t_final constant (p = P·f pendant N_STEPS / f pas), pour
+    D = 10 et 40 µm²/s. La théorie prédit alors le même N_A final pour tous les p. Si l'écart
+    vient de la diffusion, il dépend de k/D, donc de p/D, et doit tendre vers 0 quand p → 0 ;
+    un biais d'une autre origine resterait à une valeur fixe.
+
+    Écrit resultats/diffusion.csv, figures/fig_diffusion.png et resultats/diffusion_p.csv.
     """
     rng = np.random.default_rng(SEED)
     t = np.arange(N_STEPS + 1) * DT  # instants (s)
@@ -257,6 +263,30 @@ def diffusion_study():
     print(f"  Tableau enregistré : {chemin}")
     chemin = plot_diffusion(t, resultats, params, nom="fig_diffusion")
     print(f"  Figure enregistrée : {chemin}")
+
+    # 2e partie : variation de p à k·t_final constant
+    print(f"Variation de p à k·t_final constant : {N_RUNS_D} simulations par couple (D, p)")
+    lignes = []
+    for d in VALEURS_D_P:
+        for facteur in FACTEURS_P:
+            if (N_STEPS / facteur) % 1:
+                raise ValueError(f"N_STEPS / facteur doit être entier : {N_STEPS} / {facteur}")
+            n_steps, p = int(N_STEPS / facteur), P * facteur
+            t_p = np.arange(n_steps + 1) * DT  # instants (s)
+            k_p = rate_constant(p, R_C, DT)
+            n_bord_p = solve_mass_action(c0, k_p * border_factor(R_C, L_d), t_p)[:, A] * L_d ** 2
+            trajectoires, duree = run_replicas(n_a, n_a, L_d, d, DT, n_steps, R_C, p, N_RUNS_D, rng)
+            ecarts = relative_gaps(trajectoires, n_bord_p)
+            lignes.append([d, p, t_p[-1], p / d, ecarts["moyen"][-1], ecarts["incertitude"][-1], duree])
+            print(f"  D = {d:<4g} µm²/s, p = {p:<6g} ({t_p[-1]:g} s simulées), p/D = {p / d:.2e} s/µm² : "
+                  f"écart final = {ecarts['moyen'][-1]:+.2%} ± {ecarts['incertitude'][-1]:.2%}, "
+                  f"{duree:.1f} s par simulation")
+
+    params_p = {"N_A": n_a, "N_B": n_a, "L": f"{L_d:.0f} µm", "dt": f"{DT:g} s", "r_c": f"{R_C:g} µm",
+                "k·t_final": f"{k * N_STEPS * DT:.3g} µm²", "simulations par couple": N_RUNS_D, "SEED": SEED}
+    chemin = save_table("diffusion_p", ["D (um2/s)", "p", "duree simulee (s)", "p/D (s/um2)", "ecart final",
+                                        "incertitude ecart final", "duree par simulation (s)"], lignes, params_p)
+    print(f"  Tableau enregistré : {chemin}")
 
 
 def check_layer1():
@@ -347,7 +377,8 @@ if __name__ == "__main__":
     parser.add_argument("--convergence", action="store_true",
                         help="lance l'étude de convergence en dt et en N (issue #9, une quinzaine de minutes)")
     parser.add_argument("--diffusion", action="store_true",
-                        help="lance l'étude de l'écart à l'action de masse en fonction de D (plusieurs minutes)")
+                        help="lance l'étude de l'écart à l'action de masse en fonction de D puis de p "
+                             "(une vingtaine de minutes)")
     arguments = parser.parse_args()
     if arguments.convergence:
         convergence_study()
