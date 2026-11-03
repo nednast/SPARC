@@ -4,6 +4,7 @@ Point d'entrée de la simulation SPARC : boucle temporelle.
 Lancement depuis la racine du dépôt :
     python src/run_simulation.py                 # simulation de référence et vérifications (~8 s)
     python src/run_simulation.py --convergence   # étude de convergence en dt et en N (issue #9)
+    python src/run_simulation.py --diffusion     # écart à l'action de masse en fonction de D
 """
 
 import argparse
@@ -11,10 +12,10 @@ import time
 
 import numpy as np
 
-from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n,
+from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n, plot_diffusion,
                       count_species, relative_gaps, save_populations, load_populations, save_table)
 from config import (SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C,
-                    FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N)
+                    FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N, VALEURS_D, N_TOTAL_D, N_RUNS_D)
 from particles import init_particles, step
 from reactions import reaction_step
 from theory import rate_constant, border_factor, solve_mass_action
@@ -209,6 +210,51 @@ def convergence_study():
     convergence_n(rng)
 
 
+def diffusion_study():
+    """
+    Limitation par la diffusion : simulations à p, dt et k fixés, pour plusieurs valeurs de D.
+
+    La loi d'action de masse ne fait pas intervenir D : elle prédit la même évolution pour
+    tous les D. Mais k = p·π·r_c²/dt suppose une répartition uniforme des particules. Quand
+    une paire A-B proche réagit, elle disparaît ; si la diffusion est lente, les voisins ne
+    sont pas remplacés assez vite, il y a moins de paires en collision que prévu, et la
+    réaction est plus lente que la théorie (N_A simulé au-dessus de N_A théorique).
+    Cet écart doit donc diminuer quand D augmente. On compare N_A à la loi d'action de masse
+    déjà corrigée du bord (k · border_factor), pour isoler l'effet de la diffusion.
+
+    Écrit resultats/diffusion.csv et figures/fig_diffusion.png.
+    """
+    rng = np.random.default_rng(SEED)
+    t = np.arange(N_STEPS + 1) * DT  # instants (s)
+    k = rate_constant(P, R_C, DT)
+    c_initiale = N_A / L ** 2  # concentration de référence (µm⁻²)
+    n_a = N_TOTAL_D // 2
+    L_d = np.sqrt(n_a / c_initiale)  # côté de la boîte (µm)
+    c0 = np.array([n_a, n_a, 0]) / L_d ** 2
+    n_bord = solve_mass_action(c0, k * border_factor(R_C, L_d), t)[:, A] * L_d ** 2
+
+    print(f"Limitation par la diffusion : N = {N_TOTAL_D}, L = {L_d:.1f} µm, k = {k:.4f} µm²/s, "
+          f"facteur de bord = {border_factor(R_C, L_d):.4f}, {N_RUNS_D} simulations par D")
+    resultats = []
+    for d in VALEURS_D:
+        trajectoires, duree = run_replicas(n_a, n_a, L_d, d, DT, N_STEPS, R_C, P, N_RUNS_D, rng)
+        ecarts = relative_gaps(trajectoires, n_bord)
+        resultats.append({"D": d, "duree": duree, **ecarts})
+        print(f"  D = {d:<5g} µm²/s : écart final = {ecarts['moyen'][-1]:+.2%} ± {ecarts['incertitude'][-1]:.2%}, "
+              f"écart quadratique moyen = {ecarts['rms']:.2%} ± {ecarts['rms_incertitude']:.2%}, "
+              f"{duree:.1f} s par simulation")
+
+    params = {"N_A": n_a, "N_B": n_a, "L": f"{L_d:.0f} µm", "dt": f"{DT:g} s", "r_c": f"{R_C:g} µm",
+              "p": P, "k": f"{k:.3g} µm²/s", "simulations par D": N_RUNS_D, "SEED": SEED}
+    tableau = [[r["D"], r["moyen"][-1], r["incertitude"][-1], r["rms"], r["rms_incertitude"], r["duree"]]
+               for r in resultats]
+    chemin = save_table("diffusion", ["D (um2/s)", "ecart final", "incertitude ecart final", "ecart rms",
+                                      "incertitude ecart rms", "duree par simulation (s)"], tableau, params)
+    print(f"  Tableau enregistré : {chemin}")
+    chemin = plot_diffusion(t, resultats, params, nom="fig_diffusion")
+    print(f"  Figure enregistrée : {chemin}")
+
+
 def check_layer1():
     """
     Simulation de référence de la couche 1 et vérifications : confinement, conservation,
@@ -291,7 +337,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Simulation SPARC de la réaction A + B → C.")
     parser.add_argument("--convergence", action="store_true",
                         help="lance l'étude de convergence en dt et en N (issue #9, une quinzaine de minutes)")
-    if parser.parse_args().convergence:
+    parser.add_argument("--diffusion", action="store_true",
+                        help="lance l'étude de l'écart à l'action de masse en fonction de D (plusieurs minutes)")
+    arguments = parser.parse_args()
+    if arguments.convergence:
         convergence_study()
+    elif arguments.diffusion:
+        diffusion_study()
     else:
         check_layer1()

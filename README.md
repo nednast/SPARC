@@ -176,6 +176,17 @@ python src/run_simulation.py --convergence
 - **en N** : N = N_A + N_B = 200, 500, 1000 et 2000 (N_A = N_B), à concentration initiale constante (0.05 µm⁻²), la boîte étant agrandie avec N ; 40, 20, 10 et 10 simulations respectivement ;
 - écrit `resultats/convergence_dt.csv`, `resultats/convergence_N.csv`, `figures/fig_convergence_dt.png` et `figures/fig_convergence_N.png`. Les paramètres de l'étude sont dans `src/config.py` (`FACTEURS_DT`, `N_RUNS_DT`, `N_TOTAUX`, `N_RUNS_N`).
 
+Étude de la limitation par la diffusion :
+
+```bash
+python src/run_simulation.py --diffusion
+```
+
+- D = 2.5, 5, 10, 20 et 40 µm²/s, à p, dt et donc k fixés : la loi d'action de masse prédit la même évolution pour tous les D ;
+- N = N_A + N_B = 10 000 à la concentration de référence (L = 316 µm, effet de bord ≈ 0.5 %), 10 simulations par D ;
+- N_A est comparé à la loi d'action de masse **corrigée du bord** (k × `border_factor`), pour isoler l'effet de la diffusion ;
+- écrit `resultats/diffusion.csv` et `figures/fig_diffusion.png`. Paramètres dans `src/config.py` (`VALEURS_D`, `N_TOTAL_D`, `N_RUNS_D`).
+
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
 ### Temps d'exécution typique
@@ -188,6 +199,7 @@ python src/run_simulation.py --convergence
 | Études de convergence (`--convergence`) | voir ci-dessus | ≈ 13 min |
 | — une simulation, N = 200 / 500 / 1000 / 2000 (dt = 0.01 s) | 5000 pas | 0.3 / 1.2 / 5.8 / 27.8 s |
 | — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
+| Étude en D (`--diffusion`), avec la grille de cellules | 5 valeurs de D × 10 simulations, N = 10 000, 5000 pas | ≈ 7 min 20 s (≈ 8.8 s par simulation), mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
 
 Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*, avec l'ancienne détection naïve des collisions, dont le coût par pas croît comme N_A × N_B. Depuis, `detect_collisions` utilise une grille de cellules de côté r_c (coût à peu près proportionnel à N) et donne exactement les mêmes paires : les résultats sont inchangés, les durées sont plus courtes *(à re-mesurer)*.
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
@@ -232,6 +244,7 @@ Unités retenues dans tout le code (définies dans `src/config.py`) : **longueur
 | 2 | Populations A, B, C : simulation vs loi d'action de masse (`fig_populations_couche1.png`) | `python src/run_simulation.py` | N_A = N_B = 500, L = 100 µm, D = 10 µm²/s, dt = 0.01 s, 5000 pas, r_c = 2 µm, p = 0.001, k = 1.257 µm²/s, SEED = 42 |
 | 3 | Convergence en dt (`fig_convergence_dt.png`) | `python src/run_simulation.py --convergence` | N_A = N_B = 500, L = 100 µm, D = 10 µm²/s, r_c = 2 µm, dt = 0.01 / 0.005 / 0.0025 s avec p = 0.001 / 0.0005 / 0.00025 (k = 1.257 µm²/s), 50 s simulées, 10 simulations par dt, SEED = 42 |
 | 4 | Convergence en N (`fig_convergence_N.png`) | `python src/run_simulation.py --convergence` | N = N_A + N_B = 200 / 500 / 1000 / 2000, [A]₀ = [B]₀ = 0.05 µm⁻² (L = 44.7 / 70.7 / 100 / 141.4 µm), D = 10 µm²/s, dt = 0.01 s, r_c = 2 µm, p = 0.001, 50 s simulées, 40 / 20 / 10 / 10 simulations, SEED = 42 |
+| 5 | Limitation par la diffusion (`fig_diffusion.png`) | `python src/run_simulation.py --diffusion` | D = 2.5 / 5 / 10 / 20 / 40 µm²/s, N_A = N_B = 5000, L = 316 µm, dt = 0.01 s, r_c = 2 µm, p = 0.001, k = 1.257 µm²/s, 50 s simulées, 10 simulations par D, SEED = 42 |
 | … | | | |
 
 ---
@@ -260,6 +273,26 @@ Critères quantitatifs retenus (détaillés dans le rapport) :
 | | 2000 | 10 | +5.4 % ± 0.9 % | +0.9 % | 3.7 % ± 0.6 % |
 
 Données brutes : `resultats/convergence_dt.csv` et `resultats/convergence_N.csv`.
+
+La correction de bord n'explique pas tout l'écart : il reste environ +2 à +4 % au-delà du « bord prédit » pour tous les N (pour N = 2000 : +5.4 % ± 0.9 % mesuré contre +0.9 % prédit). Ce reste ne diminue pas avec N : c'est un biais du modèle, pas du bruit. L'étude en D ci-dessous montre qu'il vient en grande partie de la limitation par la diffusion.
+
+### Limitation par la diffusion
+
+Écart relatif de N_A à la loi d'action de masse **corrigée du bord** (k × `border_factor`), mêmes définitions que ci-dessus. N = 10 000 (L = 316 µm, facteur de bord 0.9946), p, dt et k fixés : la loi d'action de masse prédit la même évolution pour tous les D.
+
+| D (µm²/s) | Simulations | Écart final | Écart quadratique |
+|---|---|---|---|
+| 2.5 | 10 | +8.3 % ± 0.6 % | 5.5 % ± 0.3 % |
+| 5 | 10 | +4.8 % ± 0.6 % | 3.1 % ± 0.3 % |
+| 10 | 10 | +2.6 % ± 0.3 % | 1.7 % ± 0.2 % |
+| 20 | 10 | +1.9 % ± 0.5 % | 1.8 % ± 0.3 % |
+| 40 | 10 | +1.7 % ± 0.7 % | 1.5 % ± 0.4 % |
+
+Interprétation : `rate_constant` suppose une répartition uniforme des particules. Quand une paire A-B proche réagit, elle disparaît ; si la diffusion est lente, les voisins ne sont pas remplacés assez vite, il y a moins de paires à distance < r_c que prévu, et la réaction est plus lente que la loi d'action de masse (N_A simulé au-dessus de la théorie). C'est le régime limité par la diffusion décrit par Smoluchowski. De D = 2.5 à 10 µm²/s, l'écart est divisé par environ 2 à chaque doublement de D, comme attendu pour cet effet. Au-delà de D = 10 µm²/s, il diminue moins vite que 1/D (+1.9 % et +1.7 % pour une référence ∝ 1/D à +1.0 % et +0.5 %, soit 1.7 à 1.9 écart-type) : un petit reste de l'ordre de 1 % n'est pas expliqué à cette précision *(à vérifier : plus de simulations, ou variation de p à k·t constant)*.
+
+Pour la configuration de référence (D = 10 µm²/s), l'écart dû à la diffusion (+2.6 % ± 0.3 %) est du même ordre que celui dû au bord (+1.3 % pour L = 100 µm).
+
+Données brutes : `resultats/diffusion.csv`. Figure : `figures/fig_diffusion.png`.
 
 ---
 

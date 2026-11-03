@@ -295,6 +295,66 @@ def plot_convergence_n(resultats, t_final, params=None, nom=None):
     return _enregistrer(fig, nom, "convergence_N")
 
 
+def plot_diffusion(t, resultats, params=None, nom=None):
+    """
+    Figure de l'étude en D : écart relatif de N_A à la loi d'action de masse corrigée du bord.
+
+    (a) écart relatif moyen en fonction du temps pour chaque D, avec une bande de ±1
+        écart-type de la moyenne ; (b) écart à l'instant final en fonction de D (échelle
+        logarithmique en D), avec une courbe de référence ∝ 1/D passant par le plus petit D.
+
+    Paramètres
+    ----------
+    t : ndarray (n,)
+        Instants (s).
+    resultats : list de dict
+        Un dict par valeur de D, avec les clés "D" (µm²/s) et "moyen", "incertitude"
+        (sortie de relative_gaps, sans unité), dans l'ordre croissant de D.
+    params : dict ou None
+        Paramètres communs à afficher dans le titre.
+    nom : str ou None
+        Nom du fichier (sans extension) dans figures/ ; brouillon horodaté par défaut.
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier PNG enregistré.
+    """
+    couleurs = plt.cm.viridis(np.linspace(0, 0.8, len(resultats)))
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(12, 4.5))
+    for res, couleur in zip(resultats, couleurs):
+        ax_a.plot(t, 100 * res["moyen"], color=couleur, lw=1, label=f"D = {res['D']:g} µm²/s")
+        ax_a.fill_between(t, 100 * (res["moyen"] - res["incertitude"]),
+                          100 * (res["moyen"] + res["incertitude"]), color=couleur, alpha=0.2)
+        ax_b.errorbar(res["D"], 100 * res["moyen"][-1], yerr=100 * res["incertitude"][-1],
+                      fmt="o", color=couleur, capsize=4)
+    ax_a.axhline(0, color="gray", lw=0.8)
+    ax_a.set_xlim(t[0], t[-1])
+    ax_a.set_xlabel("t (s)")
+    ax_a.set_ylabel("écart relatif moyen sur N_A (%)")
+    ax_a.set_title("(a) Écart à l'action de masse corrigée du bord, au cours du temps", fontsize=10)
+    ax_a.legend(fontsize=8)
+    ax_a.grid(alpha=0.3)
+
+    d = np.array([res["D"] for res in resultats])
+    reference = 100 * resultats[0]["moyen"][-1] * d[0] / d  # ∝ 1/D, passant par le plus petit D
+    ax_b.plot(d, reference, "k:", label="référence ∝ 1/D")
+    ax_b.axhline(0, color="gray", lw=0.8)
+    ax_b.set_xscale("log")
+    ax_b.set_xticks(d)
+    ax_b.set_xticklabels([f"{v:g}" for v in d])
+    ax_b.minorticks_off()
+    ax_b.set_xlabel("D (µm²/s)")
+    ax_b.set_ylabel(f"écart relatif sur N_A à t = {t[-1]:g} s (%)")
+    ax_b.set_title("(b) Écart final en fonction du coefficient de diffusion", fontsize=10)
+    ax_b.legend(fontsize=8)
+    ax_b.grid(alpha=0.3)
+
+    fig.suptitle("Limitation par la diffusion (p, dt et k fixés)\n" + _texte_params(params), fontsize=9)
+    fig.tight_layout()
+    return _enregistrer(fig, nom, "diffusion")
+
+
 def plot_populations(t, comptages, comptages_theorie, params=None, nom=None):
     """
     Trace l'évolution des populations A, B, C : simulation (trait plein) et théorie (tirets).

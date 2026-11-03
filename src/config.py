@@ -48,3 +48,11 @@ N_TOTAUX = (200, 500, 1000, 2000)   # N = N_A + N_B testés (N_A = N_B), à conc
                                     # constante : la boîte est agrandie avec N
 N_RUNS_N = (40, 20, 10, 10)         # simulations indépendantes pour chaque N : plus pour les
                                     # petits N, plus bruités et moins coûteux
+
+# Étude de la limitation par la diffusion : python src/run_simulation.py --diffusion
+VALEURS_D = (2.5, 5.0, 10.0, 20.0, 40.0)  # coefficients de diffusion testés (µm²/s), p, dt et k fixés.
+                                          # Pour D = 40, déplacement relatif d'une paire par pas
+                                          # sqrt(4·D·DT) ≈ 1.3 µm : encore inférieur à R_C
+N_TOTAL_D = 10000   # N = N_A + N_B (N_A = N_B) à la concentration de référence (0.05 µm⁻²) :
+                    # boîte de 316 µm, effet de bord faible (≈ 0.5 %)
+N_RUNS_D = 10       # simulations indépendantes par valeur de D
