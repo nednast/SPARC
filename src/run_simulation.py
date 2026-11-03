@@ -225,12 +225,14 @@ def check_layer1():
     n_hors_max = max(np.sum((pos < 0) | (pos > L)) for _, pos, _ in historique)
     print(f"Confinement sur {N_STEPS} pas ({N_STEPS * DT:.0f} s) : "
           f"max de coordonnées hors de [0, L] = {n_hors_max}")
+    assert n_hors_max == 0, "des particules sont sorties de la boîte"
 
     # Test 2 — conservation de la matière : chaque C contient un A et un B,
     # donc N_A + N_C et N_B + N_C restent constants
     n_a, n_b, n_c = comptages[:, A], comptages[:, B], comptages[:, C]
     ecart_max = max(np.max(np.abs(n_a + n_c - N_A)), np.max(np.abs(n_b + n_c - N_B)))
     print(f"Conservation : écart maximal sur N_A + N_C et N_B + N_C = {ecart_max}")
+    assert ecart_max == 0, "la matière n'est pas conservée"
 
     # Populations à quelques instants
     for n in (0, 300, N_STEPS):
@@ -242,8 +244,9 @@ def check_layer1():
     t = np.arange(N_STEPS + 1) * DT
     chemin = save_populations("populations_couche1", t, comptages, L, params)
     t_relu, comptages_relus = load_populations("populations_couche1")
-    print(f"Populations enregistrées : {chemin} — relecture identique : "
-          f"{np.allclose(t_relu, t) and np.array_equal(comptages_relus, comptages)}")
+    relecture_ok = np.allclose(t_relu, t) and np.array_equal(comptages_relus, comptages)
+    print(f"Populations enregistrées : {chemin} — relecture identique : {relecture_ok}")
+    assert relecture_ok, "le CSV relu diffère des populations simulées"
 
     # Test 3 — comparaison à la loi d'action de masse (issue #8) : k = p·π·r_c²/dt,
     # résolution par solve_ivp en concentrations (µm⁻²), puis retour en nombres de particules (× L²)
@@ -280,6 +283,8 @@ def check_layer1():
     print(f"Déplacement quadratique moyen après {t_court:.1f} s ({loin.sum()} particules) : "
           f"mesuré = {msd:.1f} ± {erreur_stat:.1f} µm², théorique 4Dt = {theorie:.1f} µm², "
           f"écart = {abs(msd - theorie) / erreur_stat:.1f} écart-type(s)")
+    # 3 écarts-types : un écart plus grand n'arrive par hasard qu'environ 3 fois sur 1000
+    assert abs(msd - theorie) < 3 * erreur_stat, "le déplacement quadratique moyen s'écarte de 4·D·t"
 
 
 if __name__ == "__main__":
