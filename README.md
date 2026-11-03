@@ -189,7 +189,7 @@ python src/run_simulation.py --convergence
 | — une simulation, N = 200 / 500 / 1000 / 2000 (dt = 0.01 s) | 5000 pas | 0.3 / 1.2 / 5.8 / 27.8 s |
 | — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
 
-Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*. Le coût d'un pas croît comme N_A × N_B (détection naïve des collisions).
+Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*, avec l'ancienne détection naïve des collisions, dont le coût par pas croît comme N_A × N_B. Depuis, `detect_collisions` utilise une grille de cellules de côté r_c (coût à peu près proportionnel à N) et donne exactement les mêmes paires : les résultats sont inchangés, les durées sont plus courtes *(à re-mesurer)*.
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
 
 ---

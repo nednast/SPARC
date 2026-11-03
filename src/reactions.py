@@ -12,9 +12,21 @@ def detect_collisions(pos_A, pos_B, r_c):
     Renvoie toutes les paires (i, j) telles que la distance entre la particule A n°i
     et la particule B n°j est strictement inférieure à r_c.
 
-    Version naïve : on calcule les N_A x N_B distances d'un coup par broadcasting NumPy.
-    On compare les distances au carré à r_c² pour éviter de calculer des racines.
-    Coût en mémoire et en temps proportionnel à N_A x N_B.
+    Méthode de la grille de cellules : on découpe le plan en cellules carrées de côté r_c.
+    Deux particules à distance < r_c sont alors dans la même cellule ou dans deux cellules
+    voisines (écart d'au plus 1 cellule selon x et selon y). Pour chaque A, on ne calcule
+    donc la distance qu'aux B des 9 cellules qui l'entourent, au lieu de tous les B.
+    Coût à peu près proportionnel à N_A + N_B (au lieu de N_A x N_B pour la version naïve).
+
+    Étapes :
+    1. numéro de cellule (cx, cy) de chaque particule, résumé en une clé entière ;
+    2. les B sont triés par clé : les B d'une même cellule sont côte à côte, et
+       np.searchsorted donne pour chaque cellule la plage [debut, fin[ de ses B ;
+    3. pour chacun des 9 décalages (dx, dy), on liste les paires candidates (A, B de la
+       cellule voisine) puis on garde celles à distance < r_c (distances au carré,
+       pour éviter les racines).
+    Les paires sont renvoyées triées par i puis par j, dans le même ordre que la version
+    naïve : la simulation consomme donc les tirages aléatoires dans le même ordre.
 
     Paramètres
     ----------
@@ -32,11 +44,43 @@ def detect_collisions(pos_A, pos_B, r_c):
         Une même particule peut apparaître dans plusieurs paires (par exemple un A
         proche de deux B) : c'est à la fonction de réaction de gérer ce cas.
     """
-    # differences[i, j] = pos_A[i] - pos_B[j], tableau (N_A, N_B, 2)
-    differences = pos_A[:, np.newaxis, :] - pos_B[np.newaxis, :, :]
-    distances_carre = np.sum(differences ** 2, axis=2)  # tableau (N_A, N_B), en µm²
-    i, j = np.nonzero(distances_carre < r_c ** 2)
-    return np.column_stack((i, j))
+    if len(pos_A) == 0 or len(pos_B) == 0:
+        return np.empty((0, 2), dtype=int)
+
+    # 1. Cellules, comptées à partir du coin inférieur gauche du nuage : numéros >= 0
+    origine = np.minimum(pos_A.min(axis=0), pos_B.min(axis=0))
+    cellules_A = np.floor((pos_A - origine) / r_c).astype(int)  # (N_A, 2) : (cx, cy)
+    cellules_B = np.floor((pos_B - origine) / r_c).astype(int)
+    # clé = (cx + 1)·largeur + (cy + 1) ; le +1 et la marge de largeur évitent qu'un voisin
+    # en cy - 1 ou cy + 1 tombe sur une clé de la colonne cx voisine
+    largeur = max(cellules_A[:, 1].max(), cellules_B[:, 1].max()) + 3
+    cles_B = (cellules_B[:, 0] + 1) * largeur + (cellules_B[:, 1] + 1)
+
+    # 2. B triés par cellule
+    ordre_B = np.argsort(cles_B, kind="stable")
+    cles_B_triees = cles_B[ordre_B]
+
+    # 3. Paires candidates avec chacune des 9 cellules voisines
+    liste_i, liste_j = [], []
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            cles_voisines = (cellules_A[:, 0] + 1 + dx) * largeur + (cellules_A[:, 1] + 1 + dy)
+            debut = np.searchsorted(cles_B_triees, cles_voisines, side="left")
+            fin = np.searchsorted(cles_B_triees, cles_voisines, side="right")
+            nombre = fin - debut  # nombre de B dans la cellule voisine de chaque A
+            # Le A n°i est répété nombre[i] fois ; ses candidats sont aux places
+            # debut[i], debut[i] + 1, ..., fin[i] - 1 du tableau trié.
+            i = np.repeat(np.arange(len(pos_A)), nombre)
+            rang = np.arange(nombre.sum()) - np.repeat(np.cumsum(nombre) - nombre, nombre)
+            liste_i.append(i)
+            liste_j.append(ordre_B[np.repeat(debut, nombre) + rang])
+    i = np.concatenate(liste_i)
+    j = np.concatenate(liste_j)
+
+    proches = np.sum((pos_A[i] - pos_B[j]) ** 2, axis=1) < r_c ** 2  # distances au carré (µm²)
+    i, j = i[proches], j[proches]
+    tri = np.lexsort((j, i))  # tri par i, puis par j à i égal
+    return np.column_stack((i[tri], j[tri]))
 
 
 def react(pairs, p, rng):
@@ -144,16 +188,18 @@ if __name__ == "__main__":
     print(f"Test 2 — sans particule B : {len(paires_vides)} paire")
     assert paires_vides.shape == (0, 2)
 
-    # Test 3 — comparaison avec scipy.spatial.distance.cdist sur un tirage aléatoire
+    # Test 3 — comparaison avec scipy.spatial.distance.cdist (toutes les distances) sur des
+    # tirages aléatoires ; r_c = 7.3 µm ne divise pas L, r_c = 60 µm donne de très grandes cellules
     rng = np.random.default_rng(42)
     pos_A = rng.uniform(0, 100, size=(500, 2))
     pos_B = rng.uniform(0, 100, size=(500, 2))
+    for r_c in (2.0, 7.3, 60.0):
+        paires = detect_collisions(pos_A, pos_B, r_c)
+        attendu = np.argwhere(cdist(pos_A, pos_B) < r_c)
+        print(f"Test 3 — 500 A et 500 B aléatoires, r_c = {r_c} µm : {len(paires)} paires, "
+              f"identiques à cdist : {np.array_equal(paires, attendu)}")
+        assert np.array_equal(paires, attendu)
     r_c = 2.0
-    paires = detect_collisions(pos_A, pos_B, r_c)
-    attendu = np.argwhere(cdist(pos_A, pos_B) < r_c)
-    print(f"Test 3 — 500 A et 500 B aléatoires, r_c = {r_c} µm : {len(paires)} paires, "
-          f"identiques à cdist : {np.array_equal(paires, attendu)}")
-    assert np.array_equal(paires, attendu)
 
     # Ordre de grandeur attendu pour le test 3 : chaque paire (A, B) est en collision
     # avec la probabilité pi·r_c²/L² (loin des bords), d'où N_A·N_B·pi·r_c²/L² paires.
