@@ -263,13 +263,17 @@ def check_layer1():
     rng = np.random.default_rng(SEED)
     positions_init, labels_init = init_particles(N_A, N_B, L, rng)
 
-    # Simulation avec réaction, état enregistré à chaque pas pour les vérifications
-    _, _, comptages, historique = run_simulation(N_STEPS, positions_init, labels_init, D, DT, L,
-                                      R_C, P, rng, save_every=1)
+    # Simulation avec réaction. L'état est enregistré tous les 100 pas seulement : le garder à
+    # chaque pas coûterait N_STEPS copies des positions (≈ 85 Mo pour N = 1000). L'état final
+    # est ajouté à part, pour que l'instantané de fin existe même si N_STEPS n'est pas un multiple de 100.
+    pos_final, lab_final, comptages, historique = run_simulation(N_STEPS, positions_init, labels_init,
+                                                                 D, DT, L, R_C, P, rng, save_every=100)
+    etats = {n: (pos, lab) for n, pos, lab in historique} | {N_STEPS: (pos_final, lab_final)}
 
-    # Test 1 — confinement : aucune coordonnée hors de la boîte, à aucun pas
-    n_hors_max = max(np.sum((pos < 0) | (pos > L)) for _, pos, _ in historique)
-    print(f"Confinement sur {N_STEPS} pas ({N_STEPS * DT:.0f} s) : "
+    # Test 1 — confinement : aucune coordonnée hors de la boîte, aux instants enregistrés
+    # (reflect garantit le confinement à chaque pas par construction, voir aussi le test 2 de particles.py)
+    n_hors_max = max(np.sum((pos < 0) | (pos > L)) for pos, _ in etats.values())
+    print(f"Confinement sur {len(etats)} instants répartis sur {N_STEPS * DT:.0f} s : "
           f"max de coordonnées hors de [0, L] = {n_hors_max}")
     assert n_hors_max == 0, "des particules sont sorties de la boîte"
 
@@ -308,9 +312,9 @@ def check_layer1():
                               nom="fig_populations_couche1")
     print(f"Figure enregistrée : {chemin}")
 
-    # Instantanés : début, après 300 pas, fin
+    # Instantanés : début, après 300 pas (multiple de 100, donc enregistré), fin
     for n in (0, 300, N_STEPS):
-        _, pos, lab = historique[n]
+        pos, lab = etats[n]
         chemin = plot_snapshot(pos, lab, n * DT, L, params=params)
         print(f"Instantané enregistré : {chemin}")
 
