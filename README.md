@@ -191,6 +191,17 @@ python src/run_simulation.py --diffusion
 - puis, pour D = 10 et 40 µm²/s, variation de p (× 0.5, 1, 2, 4) à k·t_final constant : la simulation dure N_STEPS / facteur pas, si bien que la loi d'action de masse prédit le même N_A final pour tous les p ;
 - écrit `resultats/diffusion.csv`, `figures/fig_diffusion.png` et `resultats/diffusion_p.csv`. Paramètres dans `src/config.py` (`VALEURS_D`, `N_TOTAL_D`, `N_RUNS_D`, `FACTEURS_P`, `VALEURS_D_P`).
 
+Couche 2, réactifs séparés (issue #11) :
+
+```bash
+python src/run_simulation.py --couche2
+```
+
+- N_A_SEPARE = 750 A dans la moitié gauche, N_B_SEPARE = 375 B dans la moitié droite d'une boîte de 300 × 100 µm, 25 000 pas (250 s simulées) ;
+- tous les 500 pas (5 s), `compute_density_profile` découpe la boîte en N_BINS = 60 tranches de 5 µm et donne les concentrations [A], [B], [C] (µm⁻²) dans chaque tranche ;
+- vérifie que le profil initial est une marche d'escalier ([A] = 0.05 µm⁻² à gauche et 0 à droite, [B] = 0.025 µm⁻² à droite et 0 à gauche) et que chaque profil intégré redonne exactement les effectifs ;
+- enregistre les profils à t = 0, 50, 100 et 250 s dans `figures/tmp_profils_couche2.png`.
+
 Animation de la simulation (en direct, ou enregistrée en vidéo pour la soutenance) :
 
 ```bash
@@ -218,6 +229,7 @@ python src/run_simulation.py --animation separe --pas 25000 --video figures/tmp_
 | — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
 | Étude de la diffusion (`--diffusion`), avec la grille de cellules | N = 10 000 ; 5 valeurs de D × 10 simulations (5000 pas), puis 8 couples (D, p) × 10 simulations (1250 à 10 000 pas) | ≈ 18 min 20 s (≈ 8.8 s par simulation de 5000 pas), mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
 | Vidéo de l'animation (`--animation separe --video ….mp4`) | N_A = N_B = 500 (ancienne initialisation par tiers), 3000 pas (301 images) | ≈ 35 s, mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
+| Couche 2, profils de concentration (`--couche2`) | N_A = 750, N_B = 375, 25 000 pas, profils tous les 500 pas | ≈ 17 s, mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
 
 Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*, avec l'ancienne détection naïve des collisions, dont le coût par pas croît comme N_A × N_B. Depuis, `detect_collisions` utilise une grille de cellules de côté r_c (coût à peu près proportionnel à N) et donne exactement les mêmes paires : les résultats sont inchangés, les durées sont plus courtes *(à re-mesurer)*.

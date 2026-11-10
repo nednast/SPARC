@@ -27,6 +27,11 @@ L_SEPARE = (300.0, 100.0)  # boîte rectangulaire (Lx, Ly) de la couche 2, réac
 N_A_SEPARE = 750  # [A]₀ = 750 / (150·100) = 0.05 µm⁻², comme la couche 1
 N_B_SEPARE = 375  # [B]₀ = 0.025 µm⁻². Il faut [A]₀ ≠ [B]₀ : avec des concentrations égales (et le même D),
                   # le front reste immobile au centre (Gálfi & Rácz, 1988, voir theory.front_position)
+N_STEPS_SEPARE = 25000  # pas de temps de la couche 2 (sans unité) : 250 s simulées, le temps que
+                        # sqrt(4·D·t) = 100 µm reste inférieur à la distance du centre aux parois (150 µm)
+PAS_PROFIL = 500        # profils de concentration calculés tous les 500 pas (5 s)
+N_BINS = 60             # tranches en x pour les profils (sans unité) : largeur 300 / 60 = 5 µm, ≈ 25 A
+                        # par tranche au départ. Nombre pair : le bord x = Lx/2 tombe entre deux tranches
 
 # Populations initiales (nombre de particules, sans unité)
 N_A = 500

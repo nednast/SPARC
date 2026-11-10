@@ -5,7 +5,8 @@ Lancement depuis la racine du dépôt :
     python src/run_simulation.py                 # simulation de référence et vérifications (~8 s)
     python src/run_simulation.py --convergence   # étude de convergence en dt et en N (issue #9)
     python src/run_simulation.py --diffusion     # écart à l'action de masse en fonction de D
-    python src/run_simulation.py --animation separe [--pas 50000] [--video fichier.mp4]
+    python src/run_simulation.py --couche2       # réactifs séparés : profils de concentration (issue #11)
+    python src/run_simulation.py --animation separe [--pas 25000] [--video fichier.mp4]
                                                  # animation en direct (ou enregistrée en vidéo)
 """
 
@@ -17,8 +18,9 @@ from matplotlib.animation import FuncAnimation
 import numpy as np
 
 from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n, plot_diffusion,
-                      count_species, relative_gaps, save_populations, load_populations, save_table)
-from config import (SEED, L, L_SEPARE, N_A, N_B, N_A_SEPARE, N_B_SEPARE, D, DT, N_STEPS, R_C, P, A, B, C, NOMS_ESPECES,
+                      count_species, relative_gaps, save_populations, load_populations, save_table,
+                      compute_density_profile, plot_density_profiles)
+from config import (SEED, L, L_SEPARE, N_A, N_B, N_A_SEPARE, N_B_SEPARE, N_STEPS_SEPARE, PAS_PROFIL, N_BINS, D, DT, N_STEPS, R_C, P, A, B, C, NOMS_ESPECES,
                     COULEURS_ESPECES, PAS_PAR_IMAGE,
                     FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N, VALEURS_D, N_TOTAL_D, N_RUNS_D,
                     FACTEURS_P, VALEURS_D_P)
@@ -377,6 +379,61 @@ def check_layer1():
     assert abs(msd - theorie) < 3 * erreur_stat, "le déplacement quadratique moyen s'écarte de 4·D·t"
 
 
+def check_layer2():
+    """
+    Simulation de référence de la couche 2 (A à gauche, B à droite) : profils de concentration
+    le long de x, calculés tous les PAS_PROFIL pas, et vérifications.
+    """
+    rng = np.random.default_rng(SEED)
+    positions, labels = init_particles(N_A_SEPARE, N_B_SEPARE, L_SEPARE, rng, mode="separe")
+    lx, ly = L_SEPARE
+    c_a0, c_b0 = N_A_SEPARE / (lx / 2 * ly), N_B_SEPARE / (lx / 2 * ly)  # µm⁻², chaque espèce sur une moitié
+
+    debut = time.perf_counter()
+    _, _, comptages, historique = run_simulation(N_STEPS_SEPARE, positions, labels, D, DT, L_SEPARE, R_C, P,
+                                                 rng, save_every=PAS_PROFIL)
+    print(f"Couche 2 : {N_STEPS_SEPARE} pas ({N_STEPS_SEPARE * DT:g} s simulées) en "
+          f"{time.perf_counter() - debut:.1f} s, profils tous les {PAS_PROFIL * DT:g} s")
+    instants = [n * DT for n, _, _ in historique]
+    profils = [compute_density_profile(pos, lab, N_BINS, L_SEPARE)[1] for _, pos, lab in historique]
+    centres = compute_density_profile(*historique[0][1:], N_BINS, L_SEPARE)[0]
+    aire_tranche = lx / N_BINS * ly  # µm²
+
+    # Test 1 — état initial en marche d'escalier : [A] = [A]₀ à gauche et 0 à droite, l'inverse pour B.
+    # Les moyennes sur chaque moitié sont exactes (toutes les particules y sont) ; d'une tranche à
+    # l'autre, le nombre de particules fluctue comme une loi de Poisson, écart-type ≈ sqrt(n).
+    gauche = centres < lx / 2
+    p0 = profils[0]
+    print(f"Test 1 — profil initial : [A] à gauche = {p0[gauche, A].mean():.4f} µm⁻² (attendu {c_a0:.4f}), "
+          f"à droite = {p0[~gauche, A].max():g} ; [B] à droite = {p0[~gauche, B].mean():.4f} µm⁻² "
+          f"(attendu {c_b0:.4f}), à gauche = {p0[gauche, B].max():g}")
+    for espece, cote, c0 in ((A, gauche, c_a0), (B, ~gauche, c_b0)):
+        dispersion = p0[cote, espece].std() * aire_tranche  # en nombre de particules par tranche
+        print(f"         {NOMS_ESPECES[espece]} : dispersion entre tranches = {dispersion:.1f} particules, "
+              f"Poisson sqrt(n) = {np.sqrt(c0 * aire_tranche):.1f}")
+    assert np.isclose(p0[gauche, A].mean(), c_a0) and np.isclose(p0[~gauche, B].mean(), c_b0)
+    assert np.all(p0[~gauche, A] == 0) and np.all(p0[gauche, B] == 0) and np.all(p0[:, C] == 0)
+
+    # Test 2 — chaque profil contient toutes les particules : somme(concentration × aire) = effectif
+    n_saves = [n for n, _, _ in historique]
+    ecart = max(np.max(np.abs(np.rint(p.sum(axis=0) * aire_tranche) - comptages[n])) for p, n in zip(profils, n_saves))
+    print(f"Test 2 — {len(profils)} profils : écart maximal entre profil intégré et effectifs = {ecart:g} particule")
+    assert ecart == 0
+
+    # Extraction d'un profil à un instant donné (critère de fin de l'issue #11)
+    i = instants.index(100.0)
+    j = np.argmax(profils[i][:, C])
+    print(f"À t = 100 s : [C] maximal = {profils[i][j, C]:.4f} µm⁻² dans la tranche centrée en x = {centres[j]:g} µm")
+
+    params = {"N_A": N_A_SEPARE, "N_B": N_B_SEPARE, "L": f"{lx:g} x {ly:g} µm", "D": f"{D:g} µm²/s",
+              "dt": f"{DT:g} s", "r_c": f"{R_C:g} µm", "p": P, "tranches": f"{lx / N_BINS:g} µm", "SEED": SEED}
+    choisis = [instants.index(t) for t in (0.0, 50.0, 100.0, N_STEPS_SEPARE * DT)]
+    chemin = plot_density_profiles(centres, [profils[k] for k in choisis], [instants[k] for k in choisis],
+                                   params=params, nom="tmp_profils_couche2")
+    print(f"Figure enregistrée : {chemin}")
+    return centres, instants, profils
+
+
 def animate(mode, n_steps, video=None):
     """
     Anime la simulation de référence : la simulation avance pendant l'affichage, PAS_PAR_IMAGE pas par image.
@@ -440,6 +497,8 @@ if __name__ == "__main__":
     parser.add_argument("--diffusion", action="store_true",
                         help="lance l'étude de l'écart à l'action de masse en fonction de D puis de p "
                              "(une vingtaine de minutes)")
+    parser.add_argument("--couche2", action="store_true",
+                        help="simulation de référence de la couche 2 (réactifs séparés) et profils de concentration")
     parser.add_argument("--animation", choices=("uniforme", "separe"),
                         help="anime la simulation en direct, avec A et B mélangés ou séparés")
     parser.add_argument("--pas", type=int, default=N_STEPS,
@@ -449,6 +508,8 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     if arguments.animation:
         animate(arguments.animation, arguments.pas, arguments.video)
+    elif arguments.couche2:
+        check_layer2()
     elif arguments.convergence:
         convergence_study()
     elif arguments.diffusion:

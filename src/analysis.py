@@ -35,6 +35,41 @@ def count_species(labels):
     return np.bincount(labels, minlength=3)[[A, B, C]]
 
 
+def compute_density_profile(positions, labels, n_bins, L):
+    """
+    Profils de concentration de A, B et C le long de x : histogramme par tranches verticales.
+
+    La boîte est découpée en n_bins tranches de largeur Lx / n_bins, sur toute la hauteur Ly.
+    La concentration d'une espèce dans une tranche est son nombre de particules divisé par
+    l'aire de la tranche (Lx / n_bins)·Ly.
+
+    Paramètres
+    ----------
+    positions : ndarray (N, 2)
+        Positions des particules (µm).
+    labels : ndarray (N,)
+        Espèce de chaque particule (A, B ou C).
+    n_bins : int
+        Nombre de tranches en x.
+    L : float ou array-like (2,)
+        Côté de la boîte carrée (µm), ou dimensions (Lx, Ly) d'une boîte rectangulaire (µm).
+
+    Retour
+    ------
+    centres : ndarray (n_bins,)
+        Abscisse du centre de chaque tranche (µm).
+    profils : ndarray (n_bins, 3)
+        Concentrations [A], [B], [C] dans chaque tranche (µm⁻²), colonnes dans l'ordre A, B, C.
+    """
+    lx, ly = np.broadcast_to(L, 2)
+    bords = np.linspace(0.0, lx, n_bins + 1)
+    # np.histogram inclut le bord droit dans la dernière tranche : une particule en x = Lx est comptée
+    comptages = np.column_stack([np.histogram(positions[labels == espece, 0], bins=bords)[0]
+                                 for espece in (A, B, C)])
+    centres = (bords[:-1] + bords[1:]) / 2
+    return centres, comptages / ((lx / n_bins) * ly)
+
+
 def save_populations(nom, t, comptages, L, params=None):
     """
     Enregistre l'évolution des populations dans resultats/<nom>.csv.
@@ -400,6 +435,48 @@ def plot_populations(t, comptages, comptages_theorie, params=None, nom=None):
     ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
     ax.grid(alpha=0.3)
     return _enregistrer(fig, nom, "populations")
+
+
+def plot_density_profiles(centres, profils, instants, params=None, nom=None):
+    """
+    Trace les profils de concentration de A, B et C à plusieurs instants (un graphique par espèce).
+
+    Paramètres
+    ----------
+    centres : ndarray (n_bins,)
+        Abscisse du centre de chaque tranche (µm), voir compute_density_profile.
+    profils : list de ndarray (n_bins, 3)
+        Concentrations [A], [B], [C] (µm⁻²), une entrée par instant.
+    instants : list de float
+        Instants correspondants (s).
+    params : dict ou None
+        Paramètres de simulation à afficher sous le titre.
+    nom : str ou None
+        Nom du fichier (sans extension) dans figures/. Par défaut, brouillon horodaté
+        « tmp_profils_<date>-<heure>-<microsecondes> ».
+
+    Retour
+    ------
+    pathlib.Path
+        Chemin du fichier PNG enregistré.
+    """
+    fig, axes = plt.subplots(3, 1, figsize=(8, 8), sharex=True)
+    for ax, espece in zip(axes, (A, B, C)):
+        for i, (profil, t) in enumerate(zip(profils, instants)):
+            # même couleur par espèce, de plus en plus foncée avec le temps
+            ax.step(centres, profil[:, espece], where="mid", color=COULEURS_ESPECES[espece],
+                    alpha=0.25 + 0.75 * (i + 1) / len(instants), label=f"t = {t:g} s")
+        ax.set_ylabel(f"[{NOMS_ESPECES[espece]}] (µm⁻²)")
+        ax.set_ylim(bottom=0)
+        ax.grid(alpha=0.3)
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), fontsize=8)
+    axes[-1].set_xlabel("x (µm)")
+    axes[-1].set_xlim(0, centres[-1] + centres[0])  # Lx : dernier centre (Lx − largeur/2) + premier (largeur/2)
+    titre = "Profils de concentration le long de x"
+    if params:
+        titre += "\n" + _texte_params(params)
+    axes[0].set_title(titre, fontsize=9)
+    return _enregistrer(fig, nom, "profils")
 
 
 def plot_snapshot(positions, labels, t, L, params=None, nom=None):
