@@ -414,8 +414,8 @@ def plot_snapshot(positions, labels, t, L, params=None, nom=None):
         Espèce de chaque particule (A, B ou C).
     t : float
         Instant représenté (s).
-    L : float
-        Côté de la boîte carrée (µm).
+    L : float ou array-like (2,)
+        Côté de la boîte carrée (µm), ou dimensions (Lx, Ly) d'une boîte rectangulaire (µm).
     params : dict ou None
         Paramètres de simulation à afficher sous le titre, par ex. {"D": "10 µm²/s", "dt": "0.01 s"}.
     nom : str ou None
@@ -427,15 +427,16 @@ def plot_snapshot(positions, labels, t, L, params=None, nom=None):
     pathlib.Path
         Chemin du fichier PNG enregistré.
     """
-    fig, ax = plt.subplots(figsize=(6.5, 6))
+    lx, ly = np.broadcast_to(L, 2)
+    fig, ax = plt.subplots(figsize=(6.5 * max(1, lx / ly) ** 0.5, 6))  # élargie pour une boîte allongée
     for espece in (A, B, C):
         masque = labels == espece
         ax.scatter(positions[masque, 0], positions[masque, 1], s=8,
                    color=COULEURS_ESPECES[espece],
                    label=f"{NOMS_ESPECES[espece]} ({np.sum(masque)})")
 
-    ax.set_xlim(0, L)
-    ax.set_ylim(0, L)
+    ax.set_xlim(0, lx)
+    ax.set_ylim(0, ly)
     ax.set_aspect("equal")
     ax.set_xlabel("x (µm)")
     ax.set_ylabel("y (µm)")

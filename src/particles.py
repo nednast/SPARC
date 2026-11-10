@@ -15,9 +15,9 @@ import numpy as np
 from config import A, B
 
 
-def init_particles(n_a, n_b, L, rng):
+def init_particles(n_a, n_b, L, rng, mode="uniforme"):
     """
-    Place n_a particules A et n_b particules B uniformément dans la boîte [0, Lx[ x [0, Ly[.
+    Place n_a particules A et n_b particules B dans la boîte [0, Lx[ x [0, Ly[.
 
     Paramètres
     ----------
@@ -27,6 +27,10 @@ def init_particles(n_a, n_b, L, rng):
         Côté de la boîte carrée (µm), ou dimensions (Lx, Ly) d'une boîte rectangulaire (µm).
     rng : numpy.random.Generator
         Générateur aléatoire (créé avec np.random.default_rng(SEED)).
+    mode : str
+        "uniforme" (couche 1) : A et B uniformément mélangés dans toute la boîte.
+        "separe" (couche 2) : A uniforme dans le tiers gauche x ∈ [0, Lx/3[,
+        B uniforme dans le tiers droit x ∈ [2Lx/3, Lx[ ; le tiers central est vide.
 
     Retour
     ------
@@ -40,8 +44,16 @@ def init_particles(n_a, n_b, L, rng):
     if np.any(np.asarray(L) <= 0):
         raise ValueError("La taille de la boîte L doit être strictement positive.")
 
-    n = n_a + n_b
-    positions = rng.uniform(0.0, L, size=(n, 2))  # avec L = (Lx, Ly) : x dans [0, Lx[, y dans [0, Ly[
+    if mode == "uniforme":
+        positions = rng.uniform(0.0, L, size=(n_a + n_b, 2))  # avec L = (Lx, Ly) : x dans [0, Lx[, y dans [0, Ly[
+    elif mode == "separe":
+        lx, ly = np.broadcast_to(L, 2)  # accepte aussi un L scalaire (boîte carrée)
+        # bornes basses et hautes données par colonne : (x_min, y_min) et (x_max, y_max)
+        pos_a = rng.uniform((0.0, 0.0), (lx / 3, ly), size=(n_a, 2))
+        pos_b = rng.uniform((2 * lx / 3, 0.0), (lx, ly), size=(n_b, 2))
+        positions = np.concatenate([pos_a, pos_b])  # même ordre que labels : A puis B
+    else:
+        raise ValueError(f"Mode d'initialisation inconnu : {mode!r} (attendu : 'uniforme' ou 'separe').")
     labels = np.concatenate([
         np.full(n_a, A, dtype=np.int8),
         np.full(n_b, B, dtype=np.int8),
@@ -144,5 +156,21 @@ if __name__ == "__main__":
           f"x max = {pos_rect[:, 0].max():.1f} µm, y max = {pos_rect[:, 1].max():.1f} µm")
     assert n_hors == 0
     assert pos_rect[:, 0].max() > 50
+
+    # Test 3 — initialisation séparée (issue #10) dans la boîte de la couche 2 :
+    # tous les A dans le tiers gauche, tous les B dans le tiers droit, aucun dans le tiers central
+    from config import L_SEPARE
+    lx, ly = L_SEPARE
+    pos_sep, lab_sep = init_particles(N_A, N_B, L_SEPARE, rng, mode="separe")
+    x_a, x_b = pos_sep[lab_sep == A, 0], pos_sep[lab_sep == B, 0]
+    print(f"Test 3 — init séparée dans {lx:g} x {ly:g} µm : A dans x ∈ [{x_a.min():.1f}, {x_a.max():.1f}] µm, "
+          f"B dans x ∈ [{x_b.min():.1f}, {x_b.max():.1f}] µm, y max = {pos_sep[:, 1].max():.1f} µm")
+    assert len(x_a) == N_A and len(x_b) == N_B
+    assert x_a.min() >= 0 and x_a.max() < lx / 3 and x_b.min() >= 2 * lx / 3 and x_b.max() < lx
+    assert np.all((pos_sep[:, 1] >= 0) & (pos_sep[:, 1] < ly))
+    chemin = plot_snapshot(pos_sep, lab_sep, 0.0, L_SEPARE,
+                           params={"N_A": N_A, "N_B": N_B, "L": f"{lx:g} x {ly:g} µm", "init": "séparée"},
+                           nom="tmp_snapshot_separe_initial")
+    print(f"Figure enregistrée : {chemin}")
 
     print("Tous les tests passent.")
