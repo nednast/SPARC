@@ -188,6 +188,19 @@ python src/run_simulation.py --diffusion
 - puis, pour D = 10 et 40 µm²/s, variation de p (× 0.5, 1, 2, 4) à k·t_final constant : la simulation dure N_STEPS / facteur pas, si bien que la loi d'action de masse prédit le même N_A final pour tous les p ;
 - écrit `resultats/diffusion.csv`, `figures/fig_diffusion.png` et `resultats/diffusion_p.csv`. Paramètres dans `src/config.py` (`VALEURS_D`, `N_TOTAL_D`, `N_RUNS_D`, `FACTEURS_P`, `VALEURS_D_P`).
 
+Animation de la simulation (en direct, ou enregistrée en vidéo pour la soutenance) :
+
+```bash
+python src/run_simulation.py --animation uniforme                 # couche 1 : A et B mélangés, boîte 100 x 100 µm
+python src/run_simulation.py --animation separe --pas 50000       # couche 2 : A à gauche, B à droite, boîte 300 x 100 µm
+python src/run_simulation.py --animation separe --pas 50000 --video figures/tmp_animation_separe.mp4
+```
+
+- sans `--video`, une fenêtre s'ouvre et la simulation avance pendant l'affichage, `PAS_PAR_IMAGE` = 10 pas (0.1 s simulée) par image. On ferme la fenêtre pour arrêter ;
+- `--pas` donne le nombre de pas simulés, par défaut `N_STEPS` = 5000 (50 s). En mode `separe`, A et B mettent environ 100 s à se rejoindre : il faut au moins `--pas 20000` pour voir le front de réaction ;
+- `--video` enregistre l'animation au lieu de l'afficher : un `.mp4` nécessite [ffmpeg](https://ffmpeg.org/) installé, un `.gif` fonctionne partout. Un nom en `figures/tmp_*` reste hors de git ;
+- les autres paramètres (D, dt, r_c, p, N_A, N_B, SEED) sont ceux de `src/config.py`. La fenêtre utilise le backend Tk de matplotlib, fourni avec Python (sous Linux : paquet `python3-tk` si besoin).
+
 *(à compléter : options de ligne de commande, choix de la couche à simuler, scripts de génération de chaque figure)*
 
 ### Temps d'exécution typique
@@ -201,6 +214,7 @@ python src/run_simulation.py --diffusion
 | — une simulation, N = 200 / 500 / 1000 / 2000 (dt = 0.01 s) | 5000 pas | 0.3 / 1.2 / 5.8 / 27.8 s |
 | — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
 | Étude de la diffusion (`--diffusion`), avec la grille de cellules | N = 10 000 ; 5 valeurs de D × 10 simulations (5000 pas), puis 8 couples (D, p) × 10 simulations (1250 à 10 000 pas) | ≈ 18 min 20 s (≈ 8.8 s par simulation de 5000 pas), mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
+| Vidéo de l'animation (`--animation separe --video ….mp4`) | N_A = N_B = 500, 3000 pas (301 images) | ≈ 35 s, mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
 
 Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*, avec l'ancienne détection naïve des collisions, dont le coût par pas croît comme N_A × N_B. Depuis, `detect_collisions` utilise une grille de cellules de côté r_c (coût à peu près proportionnel à N) et donne exactement les mêmes paires : les résultats sont inchangés, les durées sont plus courtes *(à re-mesurer)*.

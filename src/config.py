@@ -44,6 +44,9 @@ P = 0.001  # probabilité de réaction d'une paire A-B en collision, par pas de 
            # Attention : p est défini « par pas », donc le taux de réaction réel dépend de DT.
            # Pour comparer plusieurs DT (issue #9), il faudra garder p / DT constant.
 
+# Animation : python src/run_simulation.py --animation uniforme|separe
+PAS_PAR_IMAGE = 10  # pas de temps simulés entre deux images (sans unité) : une image = 10·DT = 0.1 s simulée
+
 # Étude de convergence (issue #9) : python src/run_simulation.py --convergence
 FACTEURS_DT = (1, 2, 4)             # pas testés : dt = DT / facteur, avec p / dt constant (même k)
 N_RUNS_DT = 10                      # simulations indépendantes par valeur de dt

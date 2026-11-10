@@ -5,16 +5,21 @@ Lancement depuis la racine du dépôt :
     python src/run_simulation.py                 # simulation de référence et vérifications (~8 s)
     python src/run_simulation.py --convergence   # étude de convergence en dt et en N (issue #9)
     python src/run_simulation.py --diffusion     # écart à l'action de masse en fonction de D
+    python src/run_simulation.py --animation separe [--pas 50000] [--video fichier.mp4]
+                                                 # animation en direct (ou enregistrée en vidéo)
 """
 
 import argparse
 import time
 
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import numpy as np
 
 from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n, plot_diffusion,
                       count_species, relative_gaps, save_populations, load_populations, save_table)
-from config import (SEED, L, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C,
+from config import (SEED, L, L_SEPARE, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C, NOMS_ESPECES,
+                    COULEURS_ESPECES, PAS_PAR_IMAGE,
                     FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N, VALEURS_D, N_TOTAL_D, N_RUNS_D,
                     FACTEURS_P, VALEURS_D_P)
 from particles import init_particles, step
@@ -372,6 +377,62 @@ def check_layer1():
     assert abs(msd - theorie) < 3 * erreur_stat, "le déplacement quadratique moyen s'écarte de 4·D·t"
 
 
+def animate(mode, n_steps, video=None):
+    """
+    Anime la simulation de référence : la simulation avance pendant l'affichage, PAS_PAR_IMAGE pas par image.
+
+    Paramètres
+    ----------
+    mode : str
+        Initialisation (voir init_particles) : "uniforme" (boîte carrée L, couche 1)
+        ou "separe" (boîte L_SEPARE, A à gauche et B à droite, couche 2).
+    n_steps : int
+        Nombre total de pas de temps simulés (durée simulée n_steps·DT, en s).
+    video : str ou None
+        None : animation en direct dans une fenêtre. Sinon, chemin du fichier vidéo
+        enregistré (.mp4 : nécessite ffmpeg ; .gif : fonctionne partout, fichier plus gros).
+    """
+    if video is None:
+        plt.switch_backend("TkAgg")  # analysis.py impose « Agg » (sans fenêtre) ; Tk est fourni avec Python
+    rng = np.random.default_rng(SEED)
+    boite = L if mode == "uniforme" else L_SEPARE
+    positions, labels = init_particles(N_A, N_B, boite, rng, mode=mode)
+    lx, ly = np.broadcast_to(boite, 2)
+
+    # même mise en page que plot_snapshot
+    fig, ax = plt.subplots(figsize=(6.5 * max(1, lx / ly) ** 0.5, 6))
+    nuages = {espece: ax.scatter([], [], s=8, color=COULEURS_ESPECES[espece], label=NOMS_ESPECES[espece])
+              for espece in (A, B, C)}
+    ax.set_xlim(0, lx)
+    ax.set_ylim(0, ly)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (µm)")
+    ax.set_ylabel("y (µm)")
+    ax.legend(title="Espèce", loc="upper left", bbox_to_anchor=(1.02, 1))
+    parametres = f"init {mode}, D = {D:g} µm²/s, dt = {DT:g} s, r_c = {R_C:g} µm, p = {P:g}, SEED = {SEED}"
+
+    def mise_a_jour(image):
+        """Avance de PAS_PAR_IMAGE pas (sauf pour la 1re image : état initial) et redessine les nuages."""
+        nonlocal positions, labels
+        if image > 0:
+            for _ in range(PAS_PAR_IMAGE):
+                positions = step(positions, D, DT, boite, rng)
+                positions, labels, _ = reaction_step(positions, labels, R_C, P, rng)
+        n_a, n_b, n_c = count_species(labels)
+        for espece, nuage in nuages.items():
+            nuage.set_offsets(positions[labels == espece])
+        ax.set_title(f"t = {image * PAS_PAR_IMAGE * DT:.1f} s — A = {n_a}, B = {n_b}, C = {n_c}\n{parametres}",
+                     fontsize=10)
+
+    n_images = n_steps // PAS_PAR_IMAGE + 1
+    animation = FuncAnimation(fig, mise_a_jour, frames=n_images, interval=30, repeat=False)
+    if video is None:
+        plt.show()
+    else:
+        animation.save(video, fps=30, dpi=100)
+        print(f"Vidéo enregistrée : {video} ({n_images} images, {n_steps * DT:g} s simulées)")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Simulation SPARC de la réaction A + B → C.")
     parser.add_argument("--convergence", action="store_true",
@@ -379,8 +440,16 @@ if __name__ == "__main__":
     parser.add_argument("--diffusion", action="store_true",
                         help="lance l'étude de l'écart à l'action de masse en fonction de D puis de p "
                              "(une vingtaine de minutes)")
+    parser.add_argument("--animation", choices=("uniforme", "separe"),
+                        help="anime la simulation en direct, avec A et B mélangés ou séparés")
+    parser.add_argument("--pas", type=int, default=N_STEPS,
+                        help=f"nombre de pas de temps de l'animation (défaut : {N_STEPS})")
+    parser.add_argument("--video", metavar="FICHIER",
+                        help="avec --animation : enregistre la vidéo (.mp4 ou .gif) au lieu d'ouvrir une fenêtre")
     arguments = parser.parse_args()
-    if arguments.convergence:
+    if arguments.animation:
+        animate(arguments.animation, arguments.pas, arguments.video)
+    elif arguments.convergence:
         convergence_study()
     elif arguments.diffusion:
         diffusion_study()
