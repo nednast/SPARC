@@ -18,7 +18,7 @@ import numpy as np
 
 from analysis import (plot_snapshot, plot_populations, plot_convergence_dt, plot_convergence_n, plot_diffusion,
                       count_species, relative_gaps, save_populations, load_populations, save_table)
-from config import (SEED, L, L_SEPARE, N_A, N_B, D, DT, N_STEPS, R_C, P, A, B, C, NOMS_ESPECES,
+from config import (SEED, L, L_SEPARE, N_A, N_B, N_A_SEPARE, N_B_SEPARE, D, DT, N_STEPS, R_C, P, A, B, C, NOMS_ESPECES,
                     COULEURS_ESPECES, PAS_PAR_IMAGE,
                     FACTEURS_DT, N_RUNS_DT, N_TOTAUX, N_RUNS_N, VALEURS_D, N_TOTAL_D, N_RUNS_D,
                     FACTEURS_P, VALEURS_D_P)
@@ -385,7 +385,7 @@ def animate(mode, n_steps, video=None):
     ----------
     mode : str
         Initialisation (voir init_particles) : "uniforme" (boîte carrée L, couche 1)
-        ou "separe" (boîte L_SEPARE, A à gauche et B à droite, couche 2).
+        ou "separe" (boîte L_SEPARE, N_A_SEPARE A à gauche et N_B_SEPARE B à droite, couche 2).
     n_steps : int
         Nombre total de pas de temps simulés (durée simulée n_steps·DT, en s).
     video : str ou None
@@ -395,8 +395,8 @@ def animate(mode, n_steps, video=None):
     if video is None:
         plt.switch_backend("TkAgg")  # analysis.py impose « Agg » (sans fenêtre) ; Tk est fourni avec Python
     rng = np.random.default_rng(SEED)
-    boite = L if mode == "uniforme" else L_SEPARE
-    positions, labels = init_particles(N_A, N_B, boite, rng, mode=mode)
+    boite, n_a, n_b = (L, N_A, N_B) if mode == "uniforme" else (L_SEPARE, N_A_SEPARE, N_B_SEPARE)
+    positions, labels = init_particles(n_a, n_b, boite, rng, mode=mode)
     lx, ly = np.broadcast_to(boite, 2)
 
     # même mise en page que plot_snapshot

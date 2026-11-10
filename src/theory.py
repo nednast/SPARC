@@ -7,10 +7,14 @@ Couche 1 — loi d'action de masse pour A + B → C en milieu homogène (2D) :
 
 [A], [B], [C] sont des concentrations surfaciques (µm⁻²) et k une constante
 de vitesse en µm²/s (en 2D, k·[A]·[B] doit être en µm⁻²/s).
+
+Couche 2 — front de réaction pour A + B → C avec réactifs initialement séparés
+(Gálfi & Rácz, 1988), voir front_position.
 """
 
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.special import erfinv
 
 
 def rate_constant(p, r_c, dt):
@@ -155,6 +159,39 @@ def mass_action_exact(c0, k, t):
     return np.column_stack((c_a, c_a - delta, c_c0 + c_a0 - c_a))
 
 
+def front_position(t, c_a0, c_b0, D):
+    """
+    Position théorique du front de réaction pour A + B → C, réactifs séparés (Gálfi & Rácz, 1988).
+
+    A occupe x < x0 à la concentration [A]₀, B occupe x > x0 à la concentration [B]₀.
+    Avec le même D pour A et B, u = [A] - [B] n'est pas modifié par la réaction (A et B
+    disparaissent ensemble), donc u obéit à l'équation de diffusion seule :
+        u(x, t) = ([A]₀ - [B]₀)/2 - ([A]₀ + [B]₀)/2 · erf((x - x0) / sqrt(4·D·t)).
+    Le front est l'endroit où [A] = [B], c'est-à-dire u = 0 :
+        x_f - x0 = sqrt(4·D·t) · erfinv(([A]₀ - [B]₀) / ([A]₀ + [B]₀)).
+    Le front avance donc en √t (et non à vitesse constante), vers le réactif le moins
+    concentré ; il reste immobile si [A]₀ = [B]₀.
+    Valable pour un domaine infini, aux temps longs devant 1/(k·[A]₀) (réaction rapide
+    devant la diffusion) : en pratique tant que sqrt(4·D·t) reste petit devant la
+    distance de x0 aux parois.
+
+    Paramètres
+    ----------
+    t : float ou ndarray
+        Instants (s).
+    c_a0, c_b0 : float
+        Concentrations initiales de A (à gauche) et de B (à droite) (µm⁻²).
+    D : float
+        Coefficient de diffusion commun à A et B (µm²/s).
+
+    Retour
+    ------
+    float ou ndarray
+        Déplacement du front x_f - x0 (µm), positif = vers la droite (côté B).
+    """
+    return np.sqrt(4 * D * t) * erfinv((c_a0 - c_b0) / (c_a0 + c_b0))
+
+
 if __name__ == "__main__":
     from config import L, N_A, N_B, DT, R_C, P
 
@@ -198,4 +235,18 @@ if __name__ == "__main__":
 
     # Ordre de grandeur : temps de demi-réaction pour [A]₀ = [B]₀, t_1/2 = 1 / (k·[A]₀)
     print(f"Temps de demi-réaction 1/(k·[A]₀) = {1 / (k * c0[0]):.1f} s")
+
+    # Test 4 — front de Gálfi-Rácz : immobile si [A]₀ = [B]₀ ; sinon, en √t vers B si [A]₀ > [B]₀.
+    # Valeur à la main pour [A]₀ = 2·[B]₀, D = 10 µm²/s, t = 250 s : sqrt(4·10·250) = 100 µm,
+    # erfinv(1/3) ≈ 0.3046, donc x_f - x0 ≈ 30.5 µm
+    from config import D, L_SEPARE, N_A_SEPARE, N_B_SEPARE
+    aire_demi_boite = L_SEPARE[0] / 2 * L_SEPARE[1]  # µm², A et B occupent chacun une moitié
+    assert front_position(250.0, 0.05, 0.05, D) == 0
+    assert front_position(250.0, 0.025, 0.05, D) < 0
+    assert np.isclose(front_position(250.0, 0.05, 0.025, D), 30.46, atol=0.01)
+    assert np.isclose(front_position(4 * 250.0, 0.05, 0.025, D), 2 * front_position(250.0, 0.05, 0.025, D))
+    print(f"Test 4 — front de Gálfi-Rácz pour N_A = {N_A_SEPARE}, N_B = {N_B_SEPARE} : "
+          f"x_f - x0 = {front_position(250.0, N_A_SEPARE / aire_demi_boite, N_B_SEPARE / aire_demi_boite, D):.1f}"
+          f" µm à t = 250 s "
+          f"(0 si [A]₀ = [B]₀, ×2 quand t est multiplié par 4)")
     print("Tous les tests passent.")

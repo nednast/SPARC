@@ -23,8 +23,10 @@ COULEURS_ESPECES = {A: "tab:blue", B: "tab:red", C: "tab:green"}  # identiques s
 # Boîte de simulation
 L = 100.0  # côté de la boîte carrée (µm)
 L_SEPARE = (300.0, 100.0)  # boîte rectangulaire (Lx, Ly) de la couche 2, réactifs séparés (µm) :
-                           # A dans le tiers gauche, B dans le tiers droit (100 x 100 µm chacun),
-                           # donc même concentration initiale que la couche 1 (500 / 100² = 0.05 µm⁻²)
+                           # A dans la moitié gauche, B dans la moitié droite (150 x 100 µm chacune)
+N_A_SEPARE = 750  # [A]₀ = 750 / (150·100) = 0.05 µm⁻², comme la couche 1
+N_B_SEPARE = 375  # [B]₀ = 0.025 µm⁻². Il faut [A]₀ ≠ [B]₀ : avec des concentrations égales (et le même D),
+                  # le front reste immobile au centre (Gálfi & Rácz, 1988, voir theory.front_position)
 
 # Populations initiales (nombre de particules, sans unité)
 N_A = 500

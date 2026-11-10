@@ -29,8 +29,9 @@ def init_particles(n_a, n_b, L, rng, mode="uniforme"):
         Générateur aléatoire (créé avec np.random.default_rng(SEED)).
     mode : str
         "uniforme" (couche 1) : A et B uniformément mélangés dans toute la boîte.
-        "separe" (couche 2) : A uniforme dans le tiers gauche x ∈ [0, Lx/3[,
-        B uniforme dans le tiers droit x ∈ [2Lx/3, Lx[ ; le tiers central est vide.
+        "separe" (couche 2) : A uniforme dans la moitié gauche x ∈ [0, Lx/2[,
+        B uniforme dans la moitié droite x ∈ [Lx/2, Lx[. A et B sont en contact en x = Lx/2
+        dès t = 0, comme dans la condition initiale de Gálfi et Rácz (1988).
 
     Retour
     ------
@@ -49,8 +50,8 @@ def init_particles(n_a, n_b, L, rng, mode="uniforme"):
     elif mode == "separe":
         lx, ly = np.broadcast_to(L, 2)  # accepte aussi un L scalaire (boîte carrée)
         # bornes basses et hautes données par colonne : (x_min, y_min) et (x_max, y_max)
-        pos_a = rng.uniform((0.0, 0.0), (lx / 3, ly), size=(n_a, 2))
-        pos_b = rng.uniform((2 * lx / 3, 0.0), (lx, ly), size=(n_b, 2))
+        pos_a = rng.uniform((0.0, 0.0), (lx / 2, ly), size=(n_a, 2))
+        pos_b = rng.uniform((lx / 2, 0.0), (lx, ly), size=(n_b, 2))
         positions = np.concatenate([pos_a, pos_b])  # même ordre que labels : A puis B
     else:
         raise ValueError(f"Mode d'initialisation inconnu : {mode!r} (attendu : 'uniforme' ou 'separe').")
@@ -158,18 +159,19 @@ if __name__ == "__main__":
     assert pos_rect[:, 0].max() > 50
 
     # Test 3 — initialisation séparée (issue #10) dans la boîte de la couche 2 :
-    # tous les A dans le tiers gauche, tous les B dans le tiers droit, aucun dans le tiers central
-    from config import L_SEPARE
+    # tous les A dans la moitié gauche, tous les B dans la moitié droite
+    from config import L_SEPARE, N_A_SEPARE, N_B_SEPARE
     lx, ly = L_SEPARE
-    pos_sep, lab_sep = init_particles(N_A, N_B, L_SEPARE, rng, mode="separe")
+    pos_sep, lab_sep = init_particles(N_A_SEPARE, N_B_SEPARE, L_SEPARE, rng, mode="separe")
     x_a, x_b = pos_sep[lab_sep == A, 0], pos_sep[lab_sep == B, 0]
     print(f"Test 3 — init séparée dans {lx:g} x {ly:g} µm : A dans x ∈ [{x_a.min():.1f}, {x_a.max():.1f}] µm, "
           f"B dans x ∈ [{x_b.min():.1f}, {x_b.max():.1f}] µm, y max = {pos_sep[:, 1].max():.1f} µm")
-    assert len(x_a) == N_A and len(x_b) == N_B
-    assert x_a.min() >= 0 and x_a.max() < lx / 3 and x_b.min() >= 2 * lx / 3 and x_b.max() < lx
+    assert len(x_a) == N_A_SEPARE and len(x_b) == N_B_SEPARE
+    assert x_a.min() >= 0 and x_a.max() < lx / 2 <= x_b.min() and x_b.max() < lx
     assert np.all((pos_sep[:, 1] >= 0) & (pos_sep[:, 1] < ly))
     chemin = plot_snapshot(pos_sep, lab_sep, 0.0, L_SEPARE,
-                           params={"N_A": N_A, "N_B": N_B, "L": f"{lx:g} x {ly:g} µm", "init": "séparée"},
+                           params={"N_A": N_A_SEPARE, "N_B": N_B_SEPARE, "L": f"{lx:g} x {ly:g} µm",
+                                   "init": "séparée"},
                            nom="tmp_snapshot_separe_initial")
     print(f"Figure enregistrée : {chemin}")
 

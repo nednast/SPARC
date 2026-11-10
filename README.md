@@ -54,13 +54,16 @@ Le projet est construit en quatre couches successives, chacune s'appuyant sur la
 
 - A est placé dans la partie gauche d'une boîte rectangulaire, B dans la partie droite.
 - Une zone de réaction se forme à l'interface. On mesure les profils de concentration le long de x et la position du front au cours du temps.
-- Les résultats sont confrontés aux modèles de réaction-diffusion (lois d'échelle du front, équations de type Fisher-KPP).
+- Les résultats sont confrontés aux lois d'échelle du front de Gálfi et Rácz (1988). Avec le même D pour A et B, le front (là où [A] = [B]) se déplace en **√t** et non à vitesse constante : x_f − x₀ = √(4Dt) · erfinv(([A]₀ − [B]₀)/([A]₀ + [B]₀)) (`theory.front_position`). Il reste **immobile si [A]₀ = [B]₀** : c'est pourquoi la couche 2 utilise [A]₀ = 0.05 µm⁻² et [B]₀ = 0.025 µm⁻² (`N_A_SEPARE`, `N_B_SEPARE`), A et B étant en contact au milieu de la boîte dès t = 0.
+- Vérification préliminaire (4 simulations, 300 × 100 µm, hors dépôt) : à t = 250 s, x_f − x₀ = +32 ± 3 µm mesuré pour +30.5 µm prédit ; avec [A]₀ = [B]₀, le front reste au centre à ±3 µm près.
 
 ### Couche 3 — Réactions autocatalytique et réversible
 
 - Autocatalyse : C + A → 2A (constante k₂).
 - Réaction inverse : C → A + B (probabilité de dissociation par pas de temps, constante k_rev).
 - Exploration systématique de l'espace des paramètres (k₂, k_rev) : stabilisation, extinction, oscillations éventuelles.
+- Invariant : les trois réactions (A + B → C, C + A → 2A, C → A + B) laissent toutes **N_A + N_C constant**. A ne peut donc jamais dépasser N_A + N_C initial : l'autocatalyse ne « fait » pas de A, elle convertit C en A. Cet invariant sert de test de conservation pour la couche 3.
+- Front de Fisher-KPP : c'est **l'autocatalyse** qui produit un front à vitesse constante. Des A placés au bord d'une région remplie de C la convertissent : front de vitesse v = 2√(k₂·D·[C]₀) (Fisher, 1937 ; Kolmogorov, Petrovsky, Piskunov, 1937). Il faudra pour cela une initialisation contenant des C.
 
 ### Couche 4 — Stochastique vs déterministe
 
@@ -192,12 +195,12 @@ Animation de la simulation (en direct, ou enregistrée en vidéo pour la soutena
 
 ```bash
 python src/run_simulation.py --animation uniforme                 # couche 1 : A et B mélangés, boîte 100 x 100 µm
-python src/run_simulation.py --animation separe --pas 50000       # couche 2 : A à gauche, B à droite, boîte 300 x 100 µm
-python src/run_simulation.py --animation separe --pas 50000 --video figures/tmp_animation_separe.mp4
+python src/run_simulation.py --animation separe --pas 25000       # couche 2 : A à gauche, B à droite, boîte 300 x 100 µm
+python src/run_simulation.py --animation separe --pas 25000 --video figures/tmp_animation_separe.mp4
 ```
 
 - sans `--video`, une fenêtre s'ouvre et la simulation avance pendant l'affichage, `PAS_PAR_IMAGE` = 10 pas (0.1 s simulée) par image. On ferme la fenêtre pour arrêter ;
-- `--pas` donne le nombre de pas simulés, par défaut `N_STEPS` = 5000 (50 s). En mode `separe`, A et B mettent environ 100 s à se rejoindre : il faut au moins `--pas 20000` pour voir le front de réaction ;
+- `--pas` donne le nombre de pas simulés, par défaut `N_STEPS` = 5000 (50 s). En mode `separe`, le front ne se déplace que d'environ 30 µm en 250 s (25 000 pas) ;
 - `--video` enregistre l'animation au lieu de l'afficher : un `.mp4` nécessite [ffmpeg](https://ffmpeg.org/) installé, un `.gif` fonctionne partout. Un nom en `figures/tmp_*` reste hors de git ;
 - les autres paramètres (D, dt, r_c, p, N_A, N_B, SEED) sont ceux de `src/config.py`. La fenêtre utilise le backend Tk de matplotlib, fourni avec Python (sous Linux : paquet `python3-tk` si besoin).
 
@@ -214,7 +217,7 @@ python src/run_simulation.py --animation separe --pas 50000 --video figures/tmp_
 | — une simulation, N = 200 / 500 / 1000 / 2000 (dt = 0.01 s) | 5000 pas | 0.3 / 1.2 / 5.8 / 27.8 s |
 | — une simulation, N = 1000, dt = 0.005 / 0.0025 s | 10 000 / 20 000 pas | 11.6 / 23.3 s |
 | Étude de la diffusion (`--diffusion`), avec la grille de cellules | N = 10 000 ; 5 valeurs de D × 10 simulations (5000 pas), puis 8 couples (D, p) × 10 simulations (1250 à 10 000 pas) | ≈ 18 min 20 s (≈ 8.8 s par simulation de 5000 pas), mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
-| Vidéo de l'animation (`--animation separe --video ….mp4`) | N_A = N_B = 500, 3000 pas (301 images) | ≈ 35 s, mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
+| Vidéo de l'animation (`--animation separe --video ….mp4`) | N_A = N_B = 500 (ancienne initialisation par tiers), 3000 pas (301 images) | ≈ 35 s, mesuré sous Linux, Python 3.14, AMD Ryzen 7 5700U |
 | Couche 2, front de réaction | *à définir* | *à mesurer* |
 
 Temps mesurés sous Windows 11, Python 3.14 *(à compléter : processeur de la machine)*, avec l'ancienne détection naïve des collisions, dont le coût par pas croît comme N_A × N_B. Depuis, `detect_collisions` utilise une grille de cellules de côté r_c (coût à peu près proportionnel à N) et donne exactement les mêmes paires : les résultats sont inchangés, les durées sont plus courtes *(à re-mesurer)*.
